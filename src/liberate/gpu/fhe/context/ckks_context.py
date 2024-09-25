@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from liberate.fhe.cache import cache
-from liberate.fhe.presets import errors
+from liberate.gpu.fhe.cache import cache
+from liberate.gpu.fhe.presets import errors
 
 from .generate_primes import generate_message_primes, generate_scale_primes
 from .security_parameters import maximum_qbits

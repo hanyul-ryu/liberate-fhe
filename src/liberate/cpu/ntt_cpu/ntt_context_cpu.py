@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 import torch
-from liberate_cpu.utils.threadpool import jthreadpool
+from liberate.cpu.utils.threadpool import jthreadpool
 
 from ..fhe.presets import errors
 from . import ntt_cpu

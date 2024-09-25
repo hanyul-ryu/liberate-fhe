@@ -1,1 +1,2 @@
-from .gpu import csprng
+from .gpu import fhe
+from .cpu import fhe

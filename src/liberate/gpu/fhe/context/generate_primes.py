@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from joblib import Parallel, delayed
 
-from liberate.fhe.cache import cache
+from liberate.gpu.fhe.cache import cache
 
 from .prim_test import MillerRabinPrimalityTest
 from .security_parameters import maximum_qbits

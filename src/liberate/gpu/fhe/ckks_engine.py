@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from liberate.csprng import Csprng
-from liberate.ntt import ntt_context, ntt_cuda
+from liberate.gpu.csprng import Csprng
+from liberate.gpu.ntt import ntt_context, ntt_cuda
 
 #  from context.ckks_context import ckks_context
 from .context.ckks_context import ckks_context

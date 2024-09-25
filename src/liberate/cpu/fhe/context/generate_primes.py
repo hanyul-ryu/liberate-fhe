@@ -10,7 +10,7 @@ from ..cache import cache
 from .prim_test import MillerRabinPrimalityTest
 from .security_parameters import maximum_qbits
 
-# Default cache foldermentioned.
+# Default cache folder-mentioned.
 CACHE_FOLDER = cache.path_cache
 
 

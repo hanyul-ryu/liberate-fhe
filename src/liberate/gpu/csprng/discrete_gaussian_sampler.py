@@ -1,12 +1,7 @@
-# Sample from discrete gaussian distribution.
 import math
 
 import mpmath as mpm
 import numpy as np
-import torch
-
-#  import discrete_gaussian_cuda
-from . import discrete_gaussian_cuda
 
 
 def build_CDT_binary_search_tree(security_bits=128, sigma=3.2):
@@ -26,18 +21,18 @@ def build_CDT_binary_search_tree(security_bits=128, sigma=3.2):
     # Using the r ́enyi divergence rather than the statistical distance.,
     # as tau = 6 sigma.
     # We want the number tau to be the power of 2 in fact, since it makes the
-    # binary tree search constant time. Using a larger tau the the minumum required
+    # binary tree search constant time. Using a larger tau the minimum required
     # is no problem in fact and in terms of tree traversing it doesn't score a performance
     # hit because the tree will be balanced as a result.
     # So we calculate the smallest power of 2 bigger than the minimum tau as the number
     # of sampling points.
     sampling_power = math.ceil(math.log2(6 * sigma))
-    num_sampling_points = 2**sampling_power
+    num_sampling_points = 2 ** sampling_power
     sampling_points = list(range(num_sampling_points))
 
     # Calculate probabilities at sampling points.
     # Be careful when converting the python float to mpmath float.
-    # No mormalization is done and the mpmath tries to retain the
+    # No normalization is done and the mpmath tries to retain the
     # bit pattern of the original float.
     # As a result, when you do mpm.mpf(3.2), you get
     # mpf('3.20000000000000017763568394002504646778106689453125').
@@ -47,7 +42,7 @@ def build_CDT_binary_search_tree(security_bits=128, sigma=3.2):
     mp_two = mpm.mpf("2")
     S = mp_sigma * mpm.sqrt(mp_two * mpm.pi)
     discrete_gaussian_prob = (
-        lambda x: mpm.exp(-mpm.mpf(str(x)) ** 2 / (mp_two * mp_sigma**2)) / S
+        lambda x: mpm.exp(-mpm.mpf(str(x)) ** 2 / (mp_two * mp_sigma ** 2)) / S
     )
     gaussian_prob_at_sampling_points = [
         discrete_gaussian_prob(x) for x in sampling_points
@@ -88,11 +83,11 @@ def build_CDT_binary_search_tree(security_bits=128, sigma=3.2):
     # Build a binary tree.
     # Note that the last leaf is the sampled values.
     # The last leaf index will be calculated in-place at runtime,
-    # Thus ommitted.
+    # Thus omitted.
     tree_depth = sampling_power
     CDT_binary_tree = []
     for depth in range(tree_depth):
-        num_nodes = 2**depth
+        num_nodes = 2 ** depth
         node_index_step = num_sampling_points // num_nodes
         first_node_index = num_sampling_points // num_nodes // 2
         node_indices = list(
@@ -108,7 +103,7 @@ def build_CDT_binary_search_tree(security_bits=128, sigma=3.2):
     btree_conti = np.ascontiguousarray(btree.T.ravel(), dtype=np.uint64)
     btree_ptr = btree_conti.__array_interface__["data"][0]
 
-    # The returned tree has probably has 31 x 2 dimension.
+    # The returned tree probably has 31 x 2 dimension.
     # The 31 for the number of nodes, and
     # the 2 for (lower 64 bits, higher 64 bits).
     return btree, btree_ptr, btree_size, tree_depth
@@ -117,10 +112,10 @@ def build_CDT_binary_search_tree(security_bits=128, sigma=3.2):
 def test_discrete_gaussian(N):
     btree, depth = build_CDT_binary_search_tree()
 
-    rand = np.random.randint(0, 2**64, size=(N, 2), dtype=np.uint64)
+    rand = np.random.randint(0, 2 ** 64, size=(N, 2), dtype=np.uint64)
 
     GE = lambda x_high, x_low, y_high, y_low: (
-        ((x_high) > (y_high)) | (((x_high) == (y_high)) & ((x_low) >= (y_low)))
+            ((x_high) > (y_high)) | (((x_high) == (y_high)) & ((x_low) >= (y_low)))
     )
     result = []
     for r in rand:

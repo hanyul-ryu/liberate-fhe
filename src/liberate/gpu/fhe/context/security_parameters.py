@@ -170,7 +170,7 @@ logq["post_quantum"] = {
 
 
 def minimum_cyclotomic_order(
-    q_bits, security_bits=128, quantum="post_quantum", distribution="uniform"
+        q_bits, security_bits=128, quantum="post_quantum", distribution="uniform"
 ):
     assert quantum in [
         "pre_quantum",
@@ -186,7 +186,7 @@ def minimum_cyclotomic_order(
 
 
 def maximum_qbits(
-    L, security_bits=128, quantum="post_quantum", distribution="uniform"
+        L, security_bits=128, quantum="post_quantum", distribution="uniform"
 ):
     assert quantum in [
         "pre_quantum",

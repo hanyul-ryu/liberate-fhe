@@ -4,7 +4,7 @@ import time
 import numpy as np
 import torch
 
-from liberate.fhe.presets import errors
+from liberate.gpu.fhe.presets import errors
 
 from . import ntt_cuda
 from .rns_partition import rns_partition
