@@ -5,29 +5,29 @@ ext_modules = [
     CUDAExtension(
         name="randint_cuda",
         sources=[
-            "src/liberate/csprng/randint.cpp",
-            "src/liberate/csprng/randint_cuda_kernel.cu",
+            "src/liberate/gpu/csprng/randint.cpp",
+            "src/liberate/gpu/csprng/randint_cuda_kernel.cu",
         ],
     ),
     CUDAExtension(
         name="randround_cuda",
         sources=[
-            "src/liberate/csprng/randround.cpp",
-            "src/liberate/csprng/randround_cuda_kernel.cu",
+            "src/liberate/gpu/csprng/randround.cpp",
+            "src/liberate/gpu/csprng/randround_cuda_kernel.cu",
         ],
     ),
     CUDAExtension(
         name="discrete_gaussian_cuda",
         sources=[
-            "src/liberate/csprng/discrete_gaussian.cpp",
-            "src/liberate/csprng/discrete_gaussian_cuda_kernel.cu",
+            "src/liberate/gpu/csprng/discrete_gaussian.cpp",
+            "src/liberate/gpu/csprng/discrete_gaussian_cuda_kernel.cu",
         ],
     ),
     CUDAExtension(
         name="chacha20_cuda",
         sources=[
-            "src/liberate/csprng/chacha20.cpp",
-            "src/liberate/csprng/chacha20_cuda_kernel.cu",
+            "src/liberate/gpu/csprng/chacha20.cpp",
+            "src/liberate/gpu/csprng/chacha20_cuda_kernel.cu",
         ],
     ),
 ]
@@ -36,8 +36,8 @@ ext_modules_ntt = [
     CUDAExtension(
         name="ntt_cuda",
         sources=[
-            "src/liberate/ntt/ntt.cpp",
-            "src/liberate/ntt/ntt_cuda_kernel.cu",
+            "src/liberate/gpu/ntt/ntt.cpp",
+            "src/liberate/gpu/ntt/ntt_cuda_kernel.cu",
         ],
     )
 ]
@@ -66,4 +66,3 @@ if __name__ == "__main__":
             }
         },
     )
-
