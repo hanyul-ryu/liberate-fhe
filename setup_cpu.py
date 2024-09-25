@@ -30,7 +30,7 @@ class CustomBuildExt(BuildExtension):
 ext_modules = [
     CppExtension(
         name="jthreadpool",
-        sources=["src/cpu/utils/threadpool/jthreadpool.cpp"],
+        sources=["src/liberate/cpu/utils/threadpool/jthreadpool.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -43,7 +43,7 @@ ext_modules = [
     CppExtension(
         name="ntt_cpu",
         sources=[
-            "src/cpu/ntt_cpu/ntt_cpu.cpp"
+            "src/liberate/cpu/ntt_cpu/ntt_cpu.cpp"
         ],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
@@ -56,7 +56,7 @@ ext_modules = [
     ######################
     CppExtension(
         name=ext_name_csprng[0],  # randround
-        sources=["src/cpu/csprng/randround_cpu.cpp"],
+        sources=["src/liberate/cpu/csprng/randround_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -65,7 +65,7 @@ ext_modules = [
     ),
     CppExtension(
         name=ext_name_csprng[1],  # discrete_gaussian
-        sources=["src/cpu/csprng/discrete_gaussian_cpu.cpp"],
+        sources=["src/liberate/cpu/csprng/discrete_gaussian_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -74,7 +74,7 @@ ext_modules = [
     ),
     CppExtension(
         name=ext_name_csprng[2],  # randint
-        sources=["src/cpu/csprng/randint_cpu.cpp"],
+        sources=["src/liberate/cpu/csprng/randint_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -83,7 +83,7 @@ ext_modules = [
     ),
     CppExtension(
         name=ext_name_csprng[3],  # chacha20
-        sources=["src/cpu/csprng/chacha20_cpu.cpp"],
+        sources=["src/liberate/cpu/csprng/chacha20_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
