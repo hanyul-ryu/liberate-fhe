@@ -1,5 +1,4 @@
 import datetime
-import gc
 import math
 import pickle
 from hashlib import sha256
@@ -2719,5 +2718,3 @@ class ckks_engine:
         ct_var = self.var(ct=ct, evk=evk, gk=gk, relin=relin)
         ct_std = self.sqrt(ct=ct_var, evk=evk)
         return ct_std
-
-

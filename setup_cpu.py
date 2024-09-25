@@ -13,13 +13,13 @@ ext_name_csprng = [
 
 class CustomBuildExt(BuildExtension):
     def build_extension(self, ext):
-        path = "src/liberate_cpu/utils/threadpool"
+        path = "src/liberate/cpu/utils/threadpool"
         if ext.name == "ntt_cpu":
-            path = "src/liberate_cpu/ntt_cpu/"
+            path = "src/liberate/cpu/ntt_cpu/"
         elif ext.name in ext_name_csprng:
-            path = "src/liberate_cpu/csprng/"
+            path = "src/liberate/cpu/csprng/"
         elif ext.name == "jthreadpool":
-            path = "src/liberate_cpu/utils/threadpool"
+            path = "src/liberate/cpu/utils/threadpool"
 
         self.build_lib = path
 
@@ -30,7 +30,7 @@ class CustomBuildExt(BuildExtension):
 ext_modules = [
     CppExtension(
         name="jthreadpool",
-        sources=["src/liberate_cpu/utils/threadpool/jthreadpool.cpp"],
+        sources=["src/cpu/utils/threadpool/jthreadpool.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -43,7 +43,7 @@ ext_modules = [
     CppExtension(
         name="ntt_cpu",
         sources=[
-            "src/liberate_cpu/ntt_cpu/ntt_cpu.cpp"
+            "src/cpu/ntt_cpu/ntt_cpu.cpp"
         ],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
@@ -56,7 +56,7 @@ ext_modules = [
     ######################
     CppExtension(
         name=ext_name_csprng[0],  # randround
-        sources=["src/liberate_cpu/csprng/randround_cpu.cpp"],
+        sources=["src/cpu/csprng/randround_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -65,7 +65,7 @@ ext_modules = [
     ),
     CppExtension(
         name=ext_name_csprng[1],  # discrete_gaussian
-        sources=["src/liberate_cpu/csprng/discrete_gaussian_cpu.cpp"],
+        sources=["src/cpu/csprng/discrete_gaussian_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -74,7 +74,7 @@ ext_modules = [
     ),
     CppExtension(
         name=ext_name_csprng[2],  # randint
-        sources=["src/liberate_cpu/csprng/randint_cpu.cpp"],
+        sources=["src/cpu/csprng/randint_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
@@ -83,7 +83,7 @@ ext_modules = [
     ),
     CppExtension(
         name=ext_name_csprng[3],  # chacha20
-        sources=["src/liberate_cpu/csprng/chacha20_cpu.cpp"],
+        sources=["src/cpu/csprng/chacha20_cpu.cpp"],
         extra_compile_args=[
             "-std=c++17", "-lstdc++",
             "-Wno-everything", "-I../utils/threadpool/",
