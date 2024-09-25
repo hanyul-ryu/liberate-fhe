@@ -34,17 +34,13 @@ packages = [
     { include = "liberate", from = "src" },
 ]
 exclude = [
-    "src/liberate/csprng/setup.py",
-    "src/liberate/csprng/*.cu",
-    "src/liberate/csprng/*.cpp",
-    "src/liberate/csprng/*.h",
-    "src/liberate/ntt/*.cpp",
-    "src/liberate/ntt/*.cu",
-    "src/liberate/ntt/setup.py"
+    "**/__pycache__",
+    "src/liberate/**/*.h",
+    "src/liberate/**/*.cpp",
+    "src/liberate/**/*.cu",
 ]
 include = [
-    "src/liberate/csprng/*.so",
-    "src/liberate/ntt/*.so"
+    "src/liberate/**/*.so"
 ]
 
 [tool.poetry.dependencies]
@@ -70,7 +66,7 @@ requires = ["poetry-core", "torch", "setuptools"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-target-version = ['py310']
+target-version = ["py310"]
 line-length = 79
 
 [tool.isort]
