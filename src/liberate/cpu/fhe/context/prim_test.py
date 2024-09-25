@@ -26,7 +26,6 @@ def MillerRabinPrimalityTest(number, rounds=10):
 
     # Since there are number that are cases of "strong liar" we need to check more then one number
     for time in range(rounds):
-
         # Choose "Good" random number
         while True:
             # Draw a RANDOM number in range of number ( Z_number )
@@ -38,12 +37,16 @@ def MillerRabinPrimalityTest(number, rounds=10):
         randomNumberWithPower = pow(randomNumber, oddPartOfNumber, number)
 
         # If random number is not 1 and not -1 ( in mod n )
-        if (randomNumberWithPower != 1) and (randomNumberWithPower != number - 1):
+        if (randomNumberWithPower != 1) and (
+            randomNumberWithPower != number - 1
+        ):
             # number of iteration
             iterationNumber = 1
 
             # While we can square the number and the squared number is not -1 mod number
-            while (iterationNumber <= timesTwoDividNumber - 1) and (randomNumberWithPower != number - 1):
+            while (iterationNumber <= timesTwoDividNumber - 1) and (
+                randomNumberWithPower != number - 1
+            ):
                 # Square the number
                 randomNumberWithPower = pow(randomNumberWithPower, 2, number)
 

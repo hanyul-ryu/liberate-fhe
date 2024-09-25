@@ -6,8 +6,10 @@ from torch.utils.cpp_extension import BuildExtension, CppExtension
 os.environ["CXX"] = "clang++"
 
 ext_name_csprng = [
-    "randround_cpu", "discrete_gaussian_cpu",
-    "randint_cpu", "chacha20_cpu"
+    "randround_cpu",
+    "discrete_gaussian_cpu",
+    "randint_cpu",
+    "chacha20_cpu",
 ]
 path_source = "src/liberate/cpu"
 
@@ -35,38 +37,40 @@ ext_modules = [
             os.path.join(path_source, "utils/threadpool/jthreadpool.cpp")
         ],
         extra_compile_args=[
-            "-std=c++17", "-lstdc++",
-            "-Wno-everything", "-I../utils/threadpool/",
-            "-O2"
-        ]
+            "-std=c++17",
+            "-lstdc++",
+            "-Wno-everything",
+            "-I../utils/threadpool/",
+            "-O2",
+        ],
     ),
     ###################
     ####    ntt    ####
     ###################
     CppExtension(
         name="ntt_cpu",
-        sources=[
-            os.path.join(path_source, "ntt_cpu/ntt_cpu.cpp")
-        ],
+        sources=[os.path.join(path_source, "ntt_cpu/ntt_cpu.cpp")],
         extra_compile_args=[
-            "-std=c++17", "-lstdc++",
-            "-Wno-everything", "-I../utils/threadpool/",
-            "-O2"
-        ]
+            "-std=c++17",
+            "-lstdc++",
+            "-Wno-everything",
+            "-I../utils/threadpool/",
+            "-O2",
+        ],
     ),
     ######################
     ####    csprng    ####
     ######################
     CppExtension(
         name=ext_name_csprng[0],  # randround
-        sources=[
-            os.path.join(path_source, "csprng/randround_cpu.cpp")
-        ],
+        sources=[os.path.join(path_source, "csprng/randround_cpu.cpp")],
         extra_compile_args=[
-            "-std=c++17", "-lstdc++",
-            "-Wno-everything", "-I../utils/threadpool/",
-            "-O2"
-        ]
+            "-std=c++17",
+            "-lstdc++",
+            "-Wno-everything",
+            "-I../utils/threadpool/",
+            "-O2",
+        ],
     ),
     CppExtension(
         name=ext_name_csprng[1],  # discrete_gaussian
@@ -74,42 +78,41 @@ ext_modules = [
             os.path.join(path_source, "csprng/discrete_gaussian_cpu.cpp")
         ],
         extra_compile_args=[
-            "-std=c++17", "-lstdc++",
-            "-Wno-everything", "-I../utils/threadpool/",
-            "-O2"
-        ]
+            "-std=c++17",
+            "-lstdc++",
+            "-Wno-everything",
+            "-I../utils/threadpool/",
+            "-O2",
+        ],
     ),
     CppExtension(
         name=ext_name_csprng[2],  # randint
-        sources=[
-            os.path.join(path_source, "csprng/randint_cpu.cpp")
-        ],
+        sources=[os.path.join(path_source, "csprng/randint_cpu.cpp")],
         extra_compile_args=[
-            "-std=c++17", "-lstdc++",
-            "-Wno-everything", "-I../utils/threadpool/",
-            "-O2"
-        ]
+            "-std=c++17",
+            "-lstdc++",
+            "-Wno-everything",
+            "-I../utils/threadpool/",
+            "-O2",
+        ],
     ),
     CppExtension(
         name=ext_name_csprng[3],  # chacha20
-        sources=[
-            os.path.join(path_source, "csprng/chacha20_cpu.cpp")
-        ],
+        sources=[os.path.join(path_source, "csprng/chacha20_cpu.cpp")],
         extra_compile_args=[
-            "-std=c++17", "-lstdc++",
-            "-Wno-everything", "-I../utils/threadpool/",
-            "-O2"
-        ]
-    )
-
+            "-std=c++17",
+            "-lstdc++",
+            "-Wno-everything",
+            "-I../utils/threadpool/",
+            "-O2",
+        ],
+    ),
 ]
 
 if __name__ == "__main__":
     setup(
         name="extensions",
         ext_modules=ext_modules,
-        cmdclass={
-            "build_ext": CustomBuildExt
-        },
-        script_args=["build_ext"]
+        cmdclass={"build_ext": CustomBuildExt},
+        script_args=["build_ext"],
     )

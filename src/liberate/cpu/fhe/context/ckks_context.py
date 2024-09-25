@@ -35,14 +35,14 @@ def psi_power_series(psi, N, q):
 
 
 def bit_reverse(a, nbits):
-    format_string = f'0{nbits}b'
-    binary_string = f'{a:{format_string}}'
+    format_string = f"0{nbits}b"
+    binary_string = f"{a:{format_string}}"
     reverse_binary_string = binary_string[::-1]
     return int(reverse_binary_string, 2)
 
 
 def bit_rev_psi(q, logN):
-    N = 2 ** logN
+    N = 2**logN
     psi = [primitive_root_2N(qi, N) for qi in q]
     # Bit-reverse index.
     ind = range(N)
@@ -52,16 +52,18 @@ def bit_rev_psi(q, logN):
 
 
 def psi_bank(q, logN):
-    N = 2 ** logN
+    N = 2**logN
     psi = [primitive_root_2N(qi, N) for qi in q]
     ipsi = [pow(psii, -1, qi) for psii, qi in zip(psi, q)]
     psi_series = [psi_power_series(psii, N, qi) for psii, qi in zip(psi, q)]
-    ipsi_series = [psi_power_series(ipsii, N, qi) for ipsii, qi in zip(ipsi, q)]
+    ipsi_series = [
+        psi_power_series(ipsii, N, qi) for ipsii, qi in zip(ipsi, q)
+    ]
     return psi_series, ipsi_series
 
 
 def bit_reverse_order_index(logN):
-    N = 2 ** logN
+    N = 2**logN
     # Note that for a bit reversing, forward and backward permutations are the same.
     # i.e., don't worry about which direction.
     revi = np.array([bit_reverse(i, logN) for i in range(N)], dtype=np.int32)
@@ -69,7 +71,12 @@ def bit_reverse_order_index(logN):
 
 
 def get_psi(q, logN, my_dtype):
-    np_dtype_dict = {np.int32: np.int32, np.int64: np.int64, 30: np.int32, 62: np.int64}
+    np_dtype_dict = {
+        np.int32: np.int32,
+        np.int64: np.int64,
+        30: np.int32,
+        62: np.int64,
+    }
     dtype = np_dtype_dict[my_dtype]
     psi, ipsi = psi_bank(q, logN)
     bit_reverse_index = bit_reverse_order_index(logN)
@@ -79,13 +86,13 @@ def get_psi(q, logN, my_dtype):
 
 
 def paint_butterfly_forward(logN):
-    N = 2 ** logN
+    N = 2**logN
     t = N
     painted_even = np.zeros((logN, N), dtype=np.bool8)
     painted_odd = np.zeros((logN, N), dtype=np.bool8)
     painted_psi = np.zeros((logN, N // 2), dtype=np.int32)
     for logm in range(logN):
-        m = 2 ** logm
+        m = 2**logm
         t //= 2
         psi_ind = 0
         for i in range(m):
@@ -105,14 +112,14 @@ def paint_butterfly_forward(logN):
 
 
 def paint_butterfly_backward(logN):
-    N = 2 ** logN
+    N = 2**logN
     t = 1
     painted_even = np.zeros((logN, N), dtype=np.bool8)
     painted_odd = np.zeros((logN, N), dtype=np.bool8)
     painted_psi = np.zeros((logN, N // 2), dtype=np.int32)
     for logm in range(logN, 0, -1):
         level = logN - logm
-        m = 2 ** logm
+        m = 2**logm
         j1 = 0
         h = m // 2
         psi_ind = 0
@@ -138,42 +145,48 @@ def paint_butterfly_backward(logN):
 # The context class.
 # ------------------------------------------------------------------------------------------
 
-class CkksContext:
-    def __init__(self,
-                 buffer_bit_length=62,
-                 scale_bits=40,
-                 logN=15,
-                 num_scales=None,
-                 num_special_primes=2,
-                 sigma=3.2,
-                 uniform_tenary_secret=True,
-                 cache_folder=CACHE_FOLDER,
-                 security_bits=128,
-                 quantum='post_quantum',
-                 distribution='uniform',
-                 read_cache=True,
-                 save_cache=True,
-                 verbose=False,
-                 **kwargs):
 
+class CkksContext:
+    def __init__(
+        self,
+        buffer_bit_length=62,
+        scale_bits=40,
+        logN=15,
+        num_scales=None,
+        num_special_primes=2,
+        sigma=3.2,
+        uniform_tenary_secret=True,
+        cache_folder=CACHE_FOLDER,
+        security_bits=128,
+        quantum="post_quantum",
+        distribution="uniform",
+        read_cache=True,
+        save_cache=True,
+        verbose=False,
+        **kwargs,
+    ):
         if not Path(cache_folder).exists():
             Path(cache_folder).mkdir(parents=True, exist_ok=True)
 
         # Generation string
-        self.generation_string = f"{buffer_bit_length}_{scale_bits}_{logN}_{num_scales}_" \
-                                 f"{num_special_primes}_{security_bits}_{quantum}_" \
-                                 f"{distribution}"
+        self.generation_string = (
+            f"{buffer_bit_length}_{scale_bits}_{logN}_{num_scales}_"
+            f"{num_special_primes}_{security_bits}_{quantum}_"
+            f"{distribution}"
+        )
 
         # Compose cache savefile name.
         savepath = Path(cache_folder) / Path(self.generation_string + ".pkl")
 
         if savepath.exists() and read_cache:
-            with savepath.open('rb') as f:
+            with savepath.open("rb") as f:
                 __dict__ = pickle.load(f)
                 self.__dict__.update(__dict__)
 
             if verbose:
-                print(f"I have read in from the cached save file {savepath}!!!\n")
+                print(
+                    f"I have read in from the cached save file {savepath}!!!\n"
+                )
                 self.init_print()
 
             return
@@ -192,37 +205,49 @@ class CkksContext:
         self.sigma = sigma
         self.uniform_tenary_secret = uniform_tenary_secret
         if self.uniform_tenary_secret:
-            self.secret_key_sampling_method = 'uniform tenary'
+            self.secret_key_sampling_method = "uniform tenary"
         else:
-            self.secret_key_sampling_method = 'sparse tenary'
+            self.secret_key_sampling_method = "sparse tenary"
 
         # dtypes.
-        self.torch_dtype = {30: torch.int32, 62: torch.int64}[self.buffer_bit_length]
+        self.torch_dtype = {30: torch.int32, 62: torch.int64}[
+            self.buffer_bit_length
+        ]
         self.numpy_dtype = {30: np.int32, 62: np.int64}[self.buffer_bit_length]
 
         # Polynomial length.
-        self.N = 2 ** self.logN
+        self.N = 2**self.logN
 
         # We set the message prime to of bit-length W-2.
         self.message_bits = self.buffer_bit_length - 2
 
         # Read in pre-calculated high-quality primes.
-        message_special_primes = generate_message_primes(cache_folder=cache_folder)[self.message_bits][self.N]
+        message_special_primes = generate_message_primes(
+            cache_folder=cache_folder
+        )[self.message_bits][self.N]
 
         # For logN > 16, we need significantly more primes.
         how_many = 64 if self.logN < 16 else 128
-        scale_primes = generate_scale_primes(cache_folder=cache_folder, how_many=how_many)[self.scale_bits, self.N]
+        scale_primes = generate_scale_primes(
+            cache_folder=cache_folder, how_many=how_many
+        )[self.scale_bits, self.N]
 
         # Compose the primes pack.
         # Rescaling drops off primes in --> direction.
         # Key switching drops off primes in <-- direction.
         # Hence, [scale primes, base message prime, special primes]
-        self.max_qbits = int(maximum_qbits(self.N, security_bits, quantum, distribution))
-        base_special_primes = message_special_primes[: 1 + self.num_special_primes]
+        self.max_qbits = int(
+            maximum_qbits(self.N, security_bits, quantum, distribution)
+        )
+        base_special_primes = message_special_primes[
+            : 1 + self.num_special_primes
+        ]
 
         # If num_scales is None, generate the maximal number of levels.
         if num_scales is None:
-            base_special_bits = sum([math.log2(p) for p in base_special_primes])
+            base_special_bits = sum(
+                [math.log2(p) for p in base_special_primes]
+            )
             available_bits = self.max_qbits - base_special_bits
 
             # Initialize, to guarantee there's at least one scale.
@@ -239,9 +264,11 @@ class CkksContext:
         self.total_qbits = math.ceil(sum([math.log2(qi) for qi in self.q]))
 
         if self.total_qbits > self.max_qbits:
-            raise Exception(f"Maximum allowed qbits are violated: "
-                            f"max_qbits={self.max_qbits} and the "
-                            f"requested total is {self.total_qbits}.")
+            raise Exception(
+                f"Maximum allowed qbits are violated: "
+                f"max_qbits={self.max_qbits} and the "
+                f"requested total is {self.total_qbits}."
+            )
 
         # Generate Montgomery parameters and NTT paints.
         self.generate_montgomery_parameters()
@@ -252,28 +279,34 @@ class CkksContext:
 
         # Save cache.
         if save_cache:
-            with savepath.open('wb') as f:
+            with savepath.open("wb") as f:
                 pickle.dump(self.__dict__, f)
 
             if verbose:
                 print(f"I have saved to the cached save file {savepath}!!!\n")
 
     def generate_montgomery_parameters(self):
-
-        self.R = 2 ** self.buffer_bit_length
-        self.R_square = [self.R ** 2 % qi for qi in self.q]
+        self.R = 2**self.buffer_bit_length
+        self.R_square = [self.R**2 % qi for qi in self.q]
         self.half_buffer_bit_length = self.buffer_bit_length // 2
         self.lower_bits_mask = (1 << self.half_buffer_bit_length) - 1
         self.full_bits_mask = (1 << self.buffer_bit_length) - 1
 
         self.q_lower_bits = [qi & self.lower_bits_mask for qi in self.q]
-        self.q_higher_bits = [qi >> self.half_buffer_bit_length for qi in self.q]
+        self.q_higher_bits = [
+            qi >> self.half_buffer_bit_length for qi in self.q
+        ]
         self.q_double = [qi << 1 for qi in self.q]
 
         self.R_inv = [pow(self.R, -1, qi) for qi in self.q]
-        self.k = [(self.R * R_invi - 1) // qi for R_invi, qi in zip(self.R_inv, self.q)]
+        self.k = [
+            (self.R * R_invi - 1) // qi
+            for R_invi, qi in zip(self.R_inv, self.q)
+        ]
         self.k_lower_bits = [ki & self.lower_bits_mask for ki in self.k]
-        self.k_higher_bits = [ki >> self.half_buffer_bit_length for ki in self.k]
+        self.k_higher_bits = [
+            ki >> self.half_buffer_bit_length for ki in self.k
+        ]
 
     def generate_paints(self):
         self.N_inv = [pow(self.N, -1, qi) for qi in self.q]
@@ -282,18 +315,28 @@ class CkksContext:
         psi, psi_inv = get_psi(self.q, self.logN, self.buffer_bit_length)
 
         # Paints.
-        self.forward_even_indices, self.forward_odd_indices, forward_psi_paint = \
-            paint_butterfly_forward(self.logN)
-        self.backward_even_indices, self.backward_odd_indices, backward_psi_paint = \
-            paint_butterfly_backward(self.logN)
+        (
+            self.forward_even_indices,
+            self.forward_odd_indices,
+            forward_psi_paint,
+        ) = paint_butterfly_forward(self.logN)
+        (
+            self.backward_even_indices,
+            self.backward_odd_indices,
+            backward_psi_paint,
+        ) = paint_butterfly_backward(self.logN)
 
         # Pre-painted psi and ipsi.
-        self.forward_psi = psi[..., forward_psi_paint.ravel()].reshape(-1, *forward_psi_paint.shape)
-        self.backward_psi_inv = psi_inv[..., backward_psi_paint.ravel()]. \
-            reshape(-1, *backward_psi_paint.shape)
+        self.forward_psi = psi[..., forward_psi_paint.ravel()].reshape(
+            -1, *forward_psi_paint.shape
+        )
+        self.backward_psi_inv = psi_inv[
+            ..., backward_psi_paint.ravel()
+        ].reshape(-1, *backward_psi_paint.shape)
 
     def init_print(self):
-        print(f"""
+        print(
+            f"""
     I have received inputs:
             buffer_bit_length\t\t= {self.buffer_bit_length:,d}
             scale_bits\t\t\t= {self.scale_bits:,d}
@@ -308,4 +351,5 @@ class CkksContext:
             Number of message bits\t\t= {self.message_bits:,d}
             In total I will be using {self.total_qbits:,d} bits out of available maximum {self.max_qbits:,d} bits.
 
-My RNS primes are {self.q}.""".strip())
+My RNS primes are {self.q}.""".strip()
+        )

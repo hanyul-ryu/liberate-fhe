@@ -7,36 +7,42 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from liberate.csprng import Csprng
+from liberate.ntt import ntt_context, ntt_cuda
+
 #  from context.ckks_context import ckks_context
 from .context.ckks_context import ckks_context
 from .data_struct import data_struct
-from .encdec import decode, encode, rotate, conjugate
+from .encdec import conjugate, decode, encode, rotate
+from .presets import errors, types
 from .version import VERSION
-from .presets import types, errors
-from liberate.ntt import ntt_context
-from liberate.ntt import ntt_cuda
-from liberate.csprng import Csprng
 
 
 class ckks_engine:
     @errors.log_error
-    def __init__(self, devices: list[int] = None, verbose: bool = False,
-                 bias_guard: bool = True, norm: str = 'forward', **ctx_params):
+    def __init__(
+        self,
+        devices: list[int] = None,
+        verbose: bool = False,
+        bias_guard: bool = True,
+        norm: str = "forward",
+        **ctx_params,
+    ):
         """
-            buffer_bit_length=62,
-            scale_bits=40,
-            logN=15,
-            num_scales=None,
-            num_special_primes=2,
-            sigma=3.2,
-            uniform_tenary_secret=True,
-            cache_folder='cache/',
-            security_bits=128,
-            quantum='post_quantum',
-            distribution='uniform',
-            read_cache=True,
-            save_cache=True,
-            verbose=False
+        buffer_bit_length=62,
+        scale_bits=40,
+        logN=15,
+        num_scales=None,
+        num_special_primes=2,
+        sigma=3.2,
+        uniform_tenary_secret=True,
+        cache_folder='cache/',
+        security_bits=128,
+        quantum='post_quantum',
+        distribution='uniform',
+        read_cache=True,
+        save_cache=True,
+        verbose=False
         """
 
         self.bias_guard = bias_guard
@@ -53,12 +59,17 @@ class ckks_engine:
         self.num_slots = self.ctx.N // 2
 
         rng_repeats = max(self.ntt.num_special_primes, 2)
-        self.rng = Csprng(self.ntt.ctx.N, [len(di) for di in self.ntt.p.d], rng_repeats, devices=self.ntt.devices)
+        self.rng = Csprng(
+            self.ntt.ctx.N,
+            [len(di) for di in self.ntt.p.d],
+            rng_repeats,
+            devices=self.ntt.devices,
+        )
 
-        self.int_scale = 2 ** self.ctx.scale_bits
+        self.int_scale = 2**self.ctx.scale_bits
         self.scale = np.float64(self.int_scale)
 
-        qstr = ','.join([str(qi) for qi in self.ctx.q])
+        qstr = ",".join([str(qi) for qi in self.ctx.q])
         hashstr = (self.ctx.generation_string + "_" + qstr).encode("utf-8")
         self.hash = sha256(bytes(hashstr)).hexdigest()
 
@@ -78,7 +89,7 @@ class ckks_engine:
 
         self.create_rescale_scales()
 
-        self.galois_deltas = [2 ** i for i in range(self.ctx.logN - 1)]
+        self.galois_deltas = [2**i for i in range(self.ctx.logN - 1)]
 
         self.mult_dispatch_dict = {
             (data_struct, data_struct): self.auto_cc_mult,
@@ -89,7 +100,7 @@ class ckks_engine:
             (float, data_struct): self.scalar_mult,
             (data_struct, float): self.mult_scalar,
             (int, data_struct): self.int_scalar_mult,
-            (data_struct, int): self.mult_int_scalar
+            (data_struct, int): self.mult_int_scalar,
         }
 
         self.add_dispatch_dict = {
@@ -101,7 +112,7 @@ class ckks_engine:
             (float, data_struct): self.scalar_add,
             (data_struct, float): self.add_scalar,
             (int, data_struct): self.scalar_add,
-            (data_struct, int): self.add_scalar
+            (data_struct, int): self.add_scalar,
         }
 
         self.sub_dispatch_dict = {
@@ -113,7 +124,7 @@ class ckks_engine:
             (float, data_struct): self.scalar_sub,
             (data_struct, float): self.sub_scalar,
             (int, data_struct): self.scalar_sub,
-            (data_struct, int): self.sub_scalar
+            (data_struct, int): self.sub_scalar,
         }
 
     # -------------------------------------------------------------------------------------------
@@ -139,15 +150,19 @@ class ckks_engine:
 
                     scales = [(pow(m0, -1, mi) * self.ctx.R) % mi for mi in m]
 
-                    scales = torch.tensor(scales,
-                                          dtype=self.ctx.torch_dtype,
-                                          device=self.ntt.devices[device_id])
+                    scales = torch.tensor(
+                        scales,
+                        dtype=self.ctx.torch_dtype,
+                        device=self.ntt.devices[device_id],
+                    )
                     self.rescale_scales[level].append(scales)
 
     def leveled_devices(self):
         self.len_devices = []
         for level in range(self.num_levels):
-            self.len_devices.append(len([[a] for a in self.ntt.p.p[level] if len(a) > 0]))
+            self.len_devices.append(
+                len([[a] for a in self.ntt.p.p[level] if len(a) > 0])
+            )
 
         self.neighbor_devices = []
         for level in range(self.num_levels):
@@ -156,7 +171,9 @@ class ckks_engine:
             available_devices_ids = range(len_devices_at)
             for src_device_id in available_devices_ids:
                 neighbor_devices_at = [
-                    device_id for device_id in available_devices_ids if device_id != src_device_id
+                    device_id
+                    for device_id in available_devices_ids
+                    if device_id != src_device_id
                 ]
                 self.neighbor_devices[level].append(neighbor_devices_at)
 
@@ -165,7 +182,8 @@ class ckks_engine:
         for level in range(self.num_levels):
             num_parts = [len(parts) for parts in self.ntt.p.p[level]]
             parts_alloc = [
-                alloc[-num_parts[di] - 1:-1] for di, alloc in enumerate(self.ntt.p.part_allocations)
+                alloc[-num_parts[di] - 1 : -1]
+                for di, alloc in enumerate(self.ntt.p.part_allocations)
             ]
             self.parts_alloc.append(parts_alloc)
 
@@ -181,9 +199,12 @@ class ckks_engine:
 
     def create_ksk_rescales(self):
         R = self.ctx.R
-        P = self.ctx.q[-self.ntt.num_special_primes:][::-1]
+        P = self.ctx.q[-self.ntt.num_special_primes :][::-1]
         m = self.ctx.q
-        PiR = [[(pow(Pj, -1, mi) * R) % mi for mi in m[:-P_ind - 1]] for P_ind, Pj in enumerate(P)]
+        PiR = [
+            [(pow(Pj, -1, mi) * R) % mi for mi in m[: -P_ind - 1]]
+            for P_ind, Pj in enumerate(P)
+        ]
 
         self.PiRs = []
 
@@ -194,18 +215,21 @@ class ckks_engine:
             self.PiRs[level].append([])
 
             for device_id in range(self.ntt.num_devices):
-                dest = self.ntt.p.destination_arrays_with_special[level][device_id]
-                PiRi = [PiR[P_ind][i] for i in dest[:-P_ind - 1]]
-                PiRi = torch.tensor(PiRi,
-                                    device=self.ntt.devices[device_id],
-                                    dtype=self.ctx.torch_dtype)
+                dest = self.ntt.p.destination_arrays_with_special[level][
+                    device_id
+                ]
+                PiRi = [PiR[P_ind][i] for i in dest[: -P_ind - 1]]
+                PiRi = torch.tensor(
+                    PiRi,
+                    device=self.ntt.devices[device_id],
+                    dtype=self.ctx.torch_dtype,
+                )
                 self.PiRs[level][P_ind].append(PiRi)
 
         for level in range(1, self.num_levels):
             self.PiRs.append([])
 
             for P_ind in range(self.ntt.num_special_primes):
-
                 self.PiRs[level].append([])
 
                 for device_id in range(self.ntt.num_devices):
@@ -221,12 +245,12 @@ class ckks_engine:
             for part_id in range(len(self.ntt.p.p[0][device_id])):
                 buffer = torch.empty(
                     [self.ntt.num_special_primes, self.ctx.N],
-                    dtype=self.ctx.torch_dtype
+                    dtype=self.ctx.torch_dtype,
                 ).pin_memory()
                 self.ksk_buffers[device_id].append(buffer)
 
     def make_mont_PR(self):
-        P = math.prod(self.ntt.ctx.q[-self.ntt.num_special_primes:])
+        P = math.prod(self.ntt.ctx.q[-self.ntt.num_special_primes :])
         R = self.ctx.R
         PR = P * R
         self.mont_PR = []
@@ -234,31 +258,43 @@ class ckks_engine:
             dest = self.ntt.p.destination_arrays[0][device_id]
             m = [self.ctx.q[i] for i in dest]
             PRm = [PR % mi for mi in m]
-            PRm = torch.tensor(PRm,
-                               device=self.ntt.devices[device_id],
-                               dtype=self.ctx.torch_dtype)
+            PRm = torch.tensor(
+                PRm,
+                device=self.ntt.devices[device_id],
+                dtype=self.ctx.torch_dtype,
+            )
             self.mont_PR.append(PRm)
 
     def make_adjustments_and_corrections(self):
-
-        self.alpha = [(self.scale / np.float64(q)) ** 2 for q in self.ctx.q[:self.ctx.num_scales]]
+        self.alpha = [
+            (self.scale / np.float64(q)) ** 2
+            for q in self.ctx.q[: self.ctx.num_scales]
+        ]
         self.deviations = [1]
         for al in self.alpha:
             self.deviations.append(self.deviations[-1] ** 2 * al)
 
-        self.final_q_ind = [da[0][0] for da in self.ntt.p.destination_arrays[:-1]]
+        self.final_q_ind = [
+            da[0][0] for da in self.ntt.p.destination_arrays[:-1]
+        ]
         self.final_q = [self.ctx.q[ind] for ind in self.final_q_ind]
         self.final_alpha = [(self.scale / np.float64(q)) for q in self.final_q]
-        self.corrections = [1 / (d * fa) for d, fa in zip(self.deviations, self.final_alpha)]
+        self.corrections = [
+            1 / (d * fa) for d, fa in zip(self.deviations, self.final_alpha)
+        ]
 
         self.base_prime = self.ctx.q[self.ntt.p.base_prime_idx]
 
         self.final_scalar = []
         for qi, q in zip(self.final_q_ind, self.final_q):
-            scalar = (pow(q, -1, self.base_prime) * self.ctx.R) % self.base_prime
-            scalar = torch.tensor([scalar],
-                                  device=self.ntt.devices[0],
-                                  dtype=self.ctx.torch_dtype)
+            scalar = (
+                pow(q, -1, self.base_prime) * self.ctx.R
+            ) % self.base_prime
+            scalar = torch.tensor(
+                [scalar],
+                device=self.ntt.devices[0],
+                dtype=self.ctx.torch_dtype,
+            )
             self.final_scalar.append(scalar)
 
     # -------------------------------------------------------------------------------------------
@@ -267,7 +303,10 @@ class ckks_engine:
 
     def absmax_error(self, x, y):
         if type(x[0]) == np.complex128 and type(y[0]) == np.complex128:
-            r = np.abs(x.real - y.real).max() + np.abs(x.imag - y.imag).max() * 1j
+            r = (
+                np.abs(x.real - y.real).max()
+                + np.abs(x.imag - y.imag).max() * 1j
+            )
         else:
             r = np.abs(np.array(x) - np.array(y)).max()
         return r
@@ -279,14 +318,16 @@ class ckks_engine:
         return integral_bits
 
     @errors.log_error
-    def example(self, amin=None, amax=None, decimal_places: int = 10) -> np.array:
+    def example(
+        self, amin=None, amax=None, decimal_places: int = 10
+    ) -> np.array:
         if amin is None:
             amin = -(2 ** self.integral_bits_available())
 
         if amax is None:
             amax = 2 ** self.integral_bits_available()
 
-        base = 10 ** decimal_places
+        base = 10**decimal_places
         a = np.random.randint(amin * base, amax * base, self.ctx.N // 2) / base
         b = np.random.randint(amin * base, amax * base, self.ctx.N // 2) / base
 
@@ -302,10 +343,14 @@ class ckks_engine:
         # m = m[:self.num_slots]
         try:
             m_len = len(m)
-            padding_result = np.pad(m, (0, self.num_slots - m_len), constant_values=(0, 0))
+            padding_result = np.pad(
+                m, (0, self.num_slots - m_len), constant_values=(0, 0)
+            )
         except TypeError as e:
             m_len = len([m])
-            padding_result = np.pad([m], (0, self.num_slots - m_len), constant_values=(0, 0))
+            padding_result = np.pad(
+                [m], (0, self.num_slots - m_len), constant_values=(0, 0)
+            )
         except Exception as e:
             raise Exception("[Error] encoding Padding Error.")
         return padding_result
@@ -313,15 +358,22 @@ class ckks_engine:
     @errors.log_error
     def encode(self, m, level: int = 0, padding=True) -> list[torch.Tensor]:
         """
-            Encode a plain message m, using an encoding function.
-            Note that the encoded plain text is pre-permuted to yield cyclic rotation.
+        Encode a plain message m, using an encoding function.
+        Note that the encoded plain text is pre-permuted to yield cyclic rotation.
         """
         deviation = self.deviations[level]
         if padding:
             m = self.padding(m)
-        encoded = [encode(m, scale=self.scale, rng=self.rng,
-                          device=self.device0,
-                          deviation=deviation, norm=self.norm)]
+        encoded = [
+            encode(
+                m,
+                scale=self.scale,
+                rng=self.rng,
+                device=self.device0,
+                deviation=deviation,
+                norm=self.norm,
+            )
+        ]
 
         pt_buffer = self.ksk_buffers[0][0][0]
         pt_buffer.copy_(encoded[-1])
@@ -332,12 +384,17 @@ class ckks_engine:
     @errors.log_error
     def decode(self, m, level=0, is_real: bool = False) -> list:
         """
-            Base prime is located at -1 of the RNS channels in GPU0.
-            Assuming this is an orginary RNS deinclude_special.
+        Base prime is located at -1 of the RNS channels in GPU0.
+        Assuming this is an orginary RNS deinclude_special.
         """
         correction = self.corrections[level]
-        decoded = decode(m[0].squeeze(), scale=self.scale, correction=correction, norm=self.norm)
-        m = decoded[:self.ctx.N // 2].cpu().numpy()
+        decoded = decode(
+            m[0].squeeze(),
+            scale=self.scale,
+            correction=correction,
+            norm=self.norm,
+        )
+        m = decoded[: self.ctx.N // 2].cpu().numpy()
         if is_real:
             m = m.real
         return m
@@ -351,7 +408,9 @@ class ckks_engine:
         uniform_ternary = self.rng.randint(amax=3, shift=-1, repeats=1)
 
         mult_type = -2 if include_special else -1
-        unsigned_ternary = self.ntt.tile_unsigned(uniform_ternary, lvl=0, mult_type=mult_type)
+        unsigned_ternary = self.ntt.tile_unsigned(
+            uniform_ternary, lvl=0, mult_type=mult_type
+        )
         self.ntt.enter_ntt(unsigned_ternary, 0, mult_type)
 
         return data_struct(
@@ -362,15 +421,19 @@ class ckks_engine:
             origin=types.origins["sk"],
             level=0,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     @errors.log_error
-    def create_public_key(self, sk: data_struct, include_special: bool = False,
-                          a: list[torch.Tensor] = None) -> data_struct:
+    def create_public_key(
+        self,
+        sk: data_struct,
+        include_special: bool = False,
+        a: list[torch.Tensor] = None,
+    ) -> data_struct:
         """
-            Generates a public key against the secret key sk.
-            pk = -a * sk + e = e - a * sk
+        Generates a public key against the secret key sk.
+        pk = -a * sk + e = e - a * sk
         """
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
@@ -391,8 +454,7 @@ class ckks_engine:
         # Applying mont_mult in the order of 'a', sk will
         if a is None:
             a = self.rng.randint(
-                self.ntt.q_prepack[mult_type][level][0],
-                repeats=repeats
+                self.ntt.q_prepack[mult_type][level][0], repeats=repeats
             )
 
         sa = self.ntt.mont_mult(a, sk.data, 0, mult_type)
@@ -406,7 +468,7 @@ class ckks_engine:
             origin=types.origins["pk"],
             level=0,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     # -------------------------------------------------------------------------------------------
@@ -414,17 +476,19 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
 
     @errors.log_error
-    def encrypt(self, pt: list[torch.Tensor], pk: data_struct, level: int = 0) -> data_struct:
+    def encrypt(
+        self, pt: list[torch.Tensor], pk: data_struct, level: int = 0
+    ) -> data_struct:
         """
-            We again, multiply pt by the scale.
-            Since pt is already multiplied by the scale,
-            the multiplied pt no longer can be stored
-            in a single RNS channel.
-            That means we are forced to do the multiplication
-            in full RNS domain.
-            Note that we allow encryption at
-            levels other than 0, and that will take care of multiplying
-            the deviation factors.
+        We again, multiply pt by the scale.
+        Since pt is already multiplied by the scale,
+        the multiplied pt no longer can be stored
+        in a single RNS channel.
+        That means we are forced to do the multiplication
+        in full RNS domain.
+        Note that we allow encryption at
+        levels other than 0, and that will take care of multiplying
+        the deviation factors.
         """
         if pk.origin != types.origins["pk"]:
             raise errors.NotMatchType(origin=pk.origin, to=types.origins["pk"])
@@ -445,8 +509,12 @@ class ckks_engine:
         pte0 = self.ntt.mont_add(pt_tiled, e0_tiled, level, mult_type)
 
         start = self.ntt.starts[level]
-        pk0 = [pk.data[0][di][start[di]:] for di in range(self.ntt.num_devices)]
-        pk1 = [pk.data[1][di][start[di]:] for di in range(self.ntt.num_devices)]
+        pk0 = [
+            pk.data[0][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
+        pk1 = [
+            pk.data[1][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
 
         v = self.rng.randint(amax=2, shift=0, repeats=1)
 
@@ -473,14 +541,18 @@ class ckks_engine:
             origin=types.origins["ct"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         return ct
 
-    def decrypt_triplet(self, ct_mult: data_struct, sk: data_struct, final_round=True) -> list[torch.Tensor]:
+    def decrypt_triplet(
+        self, ct_mult: data_struct, sk: data_struct, final_round=True
+    ) -> list[torch.Tensor]:
         if ct_mult.origin != types.origins["ctt"]:
-            raise errors.NotMatchType(origin=ct_mult.origin, to=types.origins["ctt"])
+            raise errors.NotMatchType(
+                origin=ct_mult.origin, to=types.origins["ctt"]
+            )
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
@@ -496,7 +568,7 @@ class ckks_engine:
 
         self.ntt.intt_exit_reduce(d0, level)
 
-        sk_data = [sk.data[0][self.ntt.starts[level][0]:]]
+        sk_data = [sk.data[0][self.ntt.starts[level][0] :]]
 
         d1_s = self.ntt.mont_mult(d1, sk_data, level)
 
@@ -510,7 +582,9 @@ class ckks_engine:
         pt = self.ntt.mont_add(pt, d2_s2, level)
         self.ntt.reduce_2q(pt, level)
 
-        base_at = -self.ctx.num_special_primes - 1 if ct_mult.include_special else -1
+        base_at = (
+            -self.ctx.num_special_primes - 1 if ct_mult.include_special else -1
+        )
 
         base = pt[0][base_at][None, :]
         scaler = pt[0][0][None, :]
@@ -525,13 +599,17 @@ class ckks_engine:
         if final_round:
             # The scaler and the base channels are guaranteed to be in the
             # device 0.
-            rounding_prime = self.ntt.qlists[0][-self.ctx.num_special_primes-2]
+            rounding_prime = self.ntt.qlists[0][
+                -self.ctx.num_special_primes - 2
+            ]
             rounder = (scaler[0] > (rounding_prime // 2)) * 1
             scaled[0] += rounder
-        
+
         return scaled
 
-    def decrypt_double(self, ct: data_struct, sk: data_struct, final_round=True) -> list[torch.Tensor]:
+    def decrypt_double(
+        self, ct: data_struct, sk: data_struct, final_round=True
+    ) -> list[torch.Tensor]:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if sk.origin != types.origins["sk"]:
@@ -543,7 +621,7 @@ class ckks_engine:
 
         ct0 = ct.data[0][0]
         level = ct.level
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
         a = ct.data[1][0].clone()
 
         self.ntt.enter_ntt([a], level)
@@ -553,7 +631,9 @@ class ckks_engine:
         pt = self.ntt.mont_add([ct0], sa, level)
         self.ntt.reduce_2q(pt, level)
 
-        base_at = -self.ctx.num_special_primes - 1 if ct.include_special else -1
+        base_at = (
+            -self.ctx.num_special_primes - 1 if ct.include_special else -1
+        )
 
         base = pt[0][base_at][None, :]
         scaler = pt[0][0][None, :]
@@ -569,27 +649,36 @@ class ckks_engine:
         if final_round:
             # The scaler and the base channels are guaranteed to be in the
             # device 0.
-            rounding_prime = self.ntt.qlists[0][-self.ctx.num_special_primes-2]
+            rounding_prime = self.ntt.qlists[0][
+                -self.ctx.num_special_primes - 2
+            ]
             rounder = (scaler[0] > (rounding_prime // 2)) * 1
             scaled[0] += rounder
-        
+
         return scaled
 
-    def decrypt(self, ct: data_struct, sk: data_struct, final_round=True) -> list[torch.Tensor]:
+    def decrypt(
+        self, ct: data_struct, sk: data_struct, final_round=True
+    ) -> list[torch.Tensor]:
         """
-            Decrypt the cipher text ct using the secret key sk.
-            Note that the final rescaling must precede the actual decryption process.
+        Decrypt the cipher text ct using the secret key sk.
+        Note that the final rescaling must precede the actual decryption process.
         """
 
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
         if ct.origin == types.origins["ctt"]:
-            pt = self.decrypt_triplet(ct_mult=ct, sk=sk, final_round=final_round)
+            pt = self.decrypt_triplet(
+                ct_mult=ct, sk=sk, final_round=final_round
+            )
         elif ct.origin == types.origins["ct"]:
             pt = self.decrypt_double(ct=ct, sk=sk, final_round=final_round)
         else:
-            raise errors.NotMatchType(origin=ct.origin, to=f"{types.origins['ct']} or {types.origins['ctt']}")
+            raise errors.NotMatchType(
+                origin=ct.origin,
+                to=f"{types.origins['ct']} or {types.origins['ctt']}",
+            )
 
         return pt
 
@@ -597,13 +686,20 @@ class ckks_engine:
     # Key switching.
     # -------------------------------------------------------------------------------------------
 
-    def create_key_switching_key(self, sk_from: data_struct, sk_to: data_struct, a=None) -> data_struct:
+    def create_key_switching_key(
+        self, sk_from: data_struct, sk_to: data_struct, a=None
+    ) -> data_struct:
         """
-            Creates a key to switch the key for sk_src to sk_dst.
+        Creates a key to switch the key for sk_src to sk_dst.
         """
 
-        if sk_from.origin != types.origins["sk"] or sk_from.origin != types.origins["sk"]:
-            raise errors.NotMatchType(origin="not a secret key", to=types.origins["sk"])
+        if (
+            sk_from.origin != types.origins["sk"]
+            or sk_from.origin != types.origins["sk"]
+        ):
+            raise errors.NotMatchType(
+                origin="not a secret key", to=types.origins["sk"]
+            )
         if (not sk_from.ntt_state) or (not sk_from.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk_from.origin)
         if (not sk_to.ntt_state) or (not sk_to.montgomery_state):
@@ -612,7 +708,10 @@ class ckks_engine:
         level = 0
 
         stops = self.ntt.stops[-1]
-        Psk_src = [sk_from.data[di][:stops[di]].clone() for di in range(self.ntt.num_devices)]
+        Psk_src = [
+            sk_from.data[di][: stops[di]].clone()
+            for di in range(self.ntt.num_devices)
+        ]
 
         self.ntt.mont_enter_scalar(Psk_src, self.mont_PR, level)
 
@@ -620,7 +719,9 @@ class ckks_engine:
 
         for device_id in range(self.ntt.num_devices):
             for part_id, part in enumerate(self.ntt.p.p[level][device_id]):
-                global_part_id = self.ntt.p.part_allocations[device_id][part_id]
+                global_part_id = self.ntt.p.part_allocations[device_id][
+                    part_id
+                ]
 
                 crs = a[global_part_id] if a else None
                 pk = self.create_public_key(sk_to, include_special=True, a=crs)
@@ -631,11 +732,11 @@ class ckks_engine:
                 shard = Psk_src[device_id][astart:astop]
                 pk_data = pk.data[0][device_id][astart:astop]
 
-                _2q = self.ntt.parts_pack[device_id][key]['_2q']
+                _2q = self.ntt.parts_pack[device_id][key]["_2q"]
                 update_part = ntt_cuda.mont_add([pk_data], [shard], _2q)[0]
                 pk_data.copy_(update_part, non_blocking=True)
 
-                pk_name = f'key switch key part index {global_part_id}'
+                pk_name = f"key switch key part index {global_part_id}"
                 pk = pk._replace(origin=pk_name)
 
                 ksk[global_part_id] = pk
@@ -648,7 +749,8 @@ class ckks_engine:
             origin=types.origins["ksk"],
             level=level,
             hash=self.hash,
-            version=self.version)
+            version=self.version,
+        )
 
     def pre_extend(self, a, device_id, level, part_id, exit_ntt=False):
         # param_parts contain only the ordinary parts.
@@ -659,8 +761,8 @@ class ckks_engine:
 
         # Carve out the partition.
         alpha = len(text_part)
-        a_part = a[device_id][text_part[0]:text_part[-1]+1]
-        
+        a_part = a[device_id][text_part[0] : text_part[-1] + 1]
+
         # Release ntt.
         if exit_ntt:
             self.ntt.intt_exit_reduce([a_part], level, device_id, part_id)
@@ -672,34 +774,38 @@ class ckks_engine:
         # to do the job.
 
         # 2023-10-16, Juwhan Kim, In fact, m[i] is NOT monotonically increasing.
-        
-        state = a_part[0].repeat(alpha, 1)
-        
-        key = tuple(param_part)
-        for i in range(alpha-1):
-            mont_pack = self.ntt.parts_pack[device_id][param_part[i+1],]['mont_pack']
-            _2q = self.ntt.parts_pack[device_id][param_part[i+1],]['_2q']
-            Y_scalar = self.ntt.parts_pack[device_id][key]['Y_scalar'][i][None]
 
-            Y = (a_part[i+1] - state[i+1])[None, :]
+        state = a_part[0].repeat(alpha, 1)
+
+        key = tuple(param_part)
+        for i in range(alpha - 1):
+            mont_pack = self.ntt.parts_pack[device_id][param_part[i + 1],][
+                "mont_pack"
+            ]
+            _2q = self.ntt.parts_pack[device_id][param_part[i + 1],]["_2q"]
+            Y_scalar = self.ntt.parts_pack[device_id][key]["Y_scalar"][i][None]
+
+            Y = (a_part[i + 1] - state[i + 1])[None, :]
 
             # mont_enter will take care of signedness.
             # ntt_cuda.make_unsigned([Y], _2q)
-            ntt_cuda.mont_enter([Y], [Y_scalar], *mont_pack)            
+            ntt_cuda.mont_enter([Y], [Y_scalar], *mont_pack)
             # ntt_cuda.reduce_2q([Y], _2q)
 
-            state[i+1] = Y
+            state[i + 1] = Y
 
-            if i+2 < alpha:
-                state_key = tuple(param_part[i+2:])
-                state_mont_pack = self.ntt.parts_pack[device_id][state_key]['mont_pack']
-                state_2q = self.ntt.parts_pack[device_id][state_key]['_2q']
-                L_scalar = self.ntt.parts_pack[device_id][key]['L_scalar'][i]
-                new_state_len = alpha - (i+2)
+            if i + 2 < alpha:
+                state_key = tuple(param_part[i + 2 :])
+                state_mont_pack = self.ntt.parts_pack[device_id][state_key][
+                    "mont_pack"
+                ]
+                state_2q = self.ntt.parts_pack[device_id][state_key]["_2q"]
+                L_scalar = self.ntt.parts_pack[device_id][key]["L_scalar"][i]
+                new_state_len = alpha - (i + 2)
                 new_state = Y.repeat(new_state_len, 1)
                 ntt_cuda.mont_enter([new_state], [L_scalar], *state_mont_pack)
-                state[i+2:] += new_state
-        
+                state[i + 2 :] += new_state
+
         # Returned state is in plain integer format.
         return state
 
@@ -711,41 +817,49 @@ class ckks_engine:
 
         if target_device_id is None:
             target_device_id = device_id
-        
+
         rns_len = len(
-            self.ntt.p.destination_arrays_with_special[level][target_device_id])
+            self.ntt.p.destination_arrays_with_special[level][target_device_id]
+        )
         alpha = len(state)
-        
+
         # Initialize the output
-        extended = state[0].repeat(rns_len, 1)        
-        self.ntt.mont_enter([extended], level, target_device_id, -2)        
+        extended = state[0].repeat(rns_len, 1)
+        self.ntt.mont_enter([extended], level, target_device_id, -2)
 
         # Generate the search key to find the L_enter.
         part = self.ntt.p.p[level][device_id][part_id]
         key = tuple(part)
 
-        # Extract the L_enter in the target device. 
-        L_enter = self.ntt.parts_pack[device_id][key]['L_enter'][target_device_id]
-                
+        # Extract the L_enter in the target device.
+        L_enter = self.ntt.parts_pack[device_id][key]["L_enter"][
+            target_device_id
+        ]
+
         # L_enter covers the whole rns range.
         # Start from the leveled start.
         start = self.ntt.starts[level][target_device_id]
-        
+
         # Loop to generate.
-        for i in range(alpha-1):
-            Y = state[i+1].repeat(rns_len, 1)
-                        
-            self.ntt.mont_enter_scalar([Y], [L_enter[i][start:]], level, target_device_id, -2)
-            extended = self.ntt.mont_add([extended], [Y], level, target_device_id, -2)[0]
-        
+        for i in range(alpha - 1):
+            Y = state[i + 1].repeat(rns_len, 1)
+
+            self.ntt.mont_enter_scalar(
+                [Y], [L_enter[i][start:]], level, target_device_id, -2
+            )
+            extended = self.ntt.mont_add(
+                [extended], [Y], level, target_device_id, -2
+            )[0]
+
         # Returned extended is in the Montgomery format.
         return extended
-        
 
-    def create_switcher(self, a: list[torch.Tensor], ksk: data_struct, level, exit_ntt=False) -> tuple:
+    def create_switcher(
+        self, a: list[torch.Tensor], ksk: data_struct, level, exit_ntt=False
+    ) -> tuple:
         # ksk parts allocation.
         ksk_alloc = self.parts_alloc[level]
-        
+
         # Device lens and neighbor devices.
         len_devices = self.len_devices[level]
         neighbor_devices = self.neighbor_devices[level]
@@ -755,97 +869,94 @@ class ckks_engine:
         part_results = [
             [
                 [[] for _ in range(len_devices)],
-                [[] for _ in range(len_devices)]
+                [[] for _ in range(len_devices)],
             ]
-                       for _ in range(num_parts)
+            for _ in range(num_parts)
         ]
-        
+
         # 1. Generate states.
         states = [[] for _ in range(num_parts)]
         for src_device_id in range(len_devices):
             for part_id in range(len(self.ntt.p.p[level][src_device_id])):
                 storage_id = self.stor_ids[level][src_device_id][part_id]
                 state = self.pre_extend(
-                    a,
-                    src_device_id,
-                    level,
-                    part_id,
-                    exit_ntt
+                    a, src_device_id, level, part_id, exit_ntt
                 )
                 states[storage_id] = state
-        
+
         # 2. Copy to CPU.
         CPU_states = [[] for _ in range(num_parts)]
         for src_device_id in range(len_devices):
             for part_id, part in enumerate(self.ntt.p.p[level][src_device_id]):
                 storage_id = self.stor_ids[level][src_device_id][part_id]
                 alpha = len(part)
-                CPU_state = self.ksk_buffers[src_device_id][part_id][:alpha]                
+                CPU_state = self.ksk_buffers[src_device_id][part_id][:alpha]
                 CPU_state.copy_(states[storage_id], non_blocking=True)
                 CPU_states[storage_id] = CPU_state
-                
+
         # 3. Continue on with the follow ups on source devices.
         for src_device_id in range(len_devices):
             for part_id in range(len(self.ntt.p.p[level][src_device_id])):
                 storage_id = self.stor_ids[level][src_device_id][part_id]
                 state = states[storage_id]
-                d0, d1 = self.switcher_later_part(state, ksk,
-                                               src_device_id,
-                                               src_device_id,
-                                               level, part_id)
+                d0, d1 = self.switcher_later_part(
+                    state, ksk, src_device_id, src_device_id, level, part_id
+                )
 
                 part_results[storage_id][0][src_device_id] = d0
                 part_results[storage_id][1][src_device_id] = d1
-        
+
         # 4. Copy onto neighbor GPUs the states.
         CUDA_states = [[] for _ in range(num_parts)]
         for src_device_id in range(len_devices):
-            for j, dst_device_id in enumerate(
-                    neighbor_devices[src_device_id]):           
-                for part_id, part in enumerate(self.ntt.p.p[level][src_device_id]):
+            for j, dst_device_id in enumerate(neighbor_devices[src_device_id]):
+                for part_id, part in enumerate(
+                    self.ntt.p.p[level][src_device_id]
+                ):
                     storage_id = self.stor_ids[level][src_device_id][part_id]
                     CPU_state = CPU_states[storage_id]
                     CUDA_states[storage_id] = CPU_state.cuda(
-                        self.ntt.devices[dst_device_id], non_blocking=True)
-                    
+                        self.ntt.devices[dst_device_id], non_blocking=True
+                    )
+
         # 5. Synchronize.
         # torch.cuda.synchronize()
-        
-        #6. Do follow ups on neighbors.
+
+        # 6. Do follow ups on neighbors.
         for src_device_id in range(len_devices):
-            for j, dst_device_id in enumerate(
-                    neighbor_devices[src_device_id]):
-                for part_id, part in enumerate(self.ntt.p.p[level][src_device_id]):
+            for j, dst_device_id in enumerate(neighbor_devices[src_device_id]):
+                for part_id, part in enumerate(
+                    self.ntt.p.p[level][src_device_id]
+                ):
                     storage_id = self.stor_ids[level][src_device_id][part_id]
                     CUDA_state = CUDA_states[storage_id]
-                    d0, d1 = self.switcher_later_part(CUDA_state,
-                                           ksk,
-                                           src_device_id,
-                                           dst_device_id,
-                                           level,
-                                           part_id)
+                    d0, d1 = self.switcher_later_part(
+                        CUDA_state,
+                        ksk,
+                        src_device_id,
+                        dst_device_id,
+                        level,
+                        part_id,
+                    )
                     part_results[storage_id][0][dst_device_id] = d0
                     part_results[storage_id][1][dst_device_id] = d1
-                    
+
         # 7. Sum up.
         summed0 = part_results[0][0]
         summed1 = part_results[0][1]
-        
-        
+
         for i in range(1, len(part_results)):
-            summed0 = self.ntt.mont_add(
-                summed0, part_results[i][0], level, -2)
-            summed1 = self.ntt.mont_add(
-                summed1, part_results[i][1], level, -2)
-            
+            summed0 = self.ntt.mont_add(summed0, part_results[i][0], level, -2)
+            summed1 = self.ntt.mont_add(summed1, part_results[i][1], level, -2)
+
         # Rename summed's.
         d0 = summed0
         d1 = summed1
 
         # intt to prepare for division by P.
         self.ntt.intt_exit_reduce(d0, level, -2)
-        self.ntt.intt_exit_reduce(d1, level, -2)       
-        
+        self.ntt.intt_exit_reduce(d1, level, -2)
+
         # 6. Divide by P.
         # This is actually done in successive order.
         # Rescale from the most outer prime channel.
@@ -853,25 +964,33 @@ class ckks_engine:
 
         # Pre-montgomery enter the ordinary part.
         # Note that special prime channels remain intact.
-        c0 = [d[:-self.ntt.num_special_primes] for d in d0]
-        c1 = [d[:-self.ntt.num_special_primes] for d in d1]
-        
+        c0 = [d[: -self.ntt.num_special_primes] for d in d0]
+        c1 = [d[: -self.ntt.num_special_primes] for d in d1]
+
         self.ntt.mont_enter(c0, level, -1)
         self.ntt.mont_enter(c1, level, -1)
 
-        current_len = [len(d) for d in self.ntt.p.destination_arrays_with_special[level]]
-        
+        current_len = [
+            len(d) for d in self.ntt.p.destination_arrays_with_special[level]
+        ]
+
         for P_ind in range(self.ntt.num_special_primes):
             PiRi = self.PiRs[level][P_ind]
 
             # Tile.
-            P0 = [d[-1-P_ind].repeat(current_len[di], 1) for di, d in enumerate(d0)]
-            P1 = [d[-1-P_ind].repeat(current_len[di], 1) for di, d in enumerate(d1)]
-            
+            P0 = [
+                d[-1 - P_ind].repeat(current_len[di], 1)
+                for di, d in enumerate(d0)
+            ]
+            P1 = [
+                d[-1 - P_ind].repeat(current_len[di], 1)
+                for di, d in enumerate(d1)
+            ]
+
             # mont enter only the ordinary part.
-            Q0 = [d[:-self.ntt.num_special_primes] for d in P0]
-            Q1 = [d[:-self.ntt.num_special_primes] for d in P1]
-            
+            Q0 = [d[: -self.ntt.num_special_primes] for d in P0]
+            Q1 = [d[: -self.ntt.num_special_primes] for d in P1]
+
             self.ntt.mont_enter(Q0, level, -1)
             self.ntt.mont_enter(Q1, level, -1)
 
@@ -886,34 +1005,30 @@ class ckks_engine:
             self.ntt.mont_enter_scalar(d1, PiRi, level, -2)
 
         # Carve out again, since d0 and d1 are fresh new.
-        c0 = [d[:-self.ntt.num_special_primes] for d in d0]
-        c1 = [d[:-self.ntt.num_special_primes] for d in d1]
-        
+        c0 = [d[: -self.ntt.num_special_primes] for d in d0]
+        c1 = [d[: -self.ntt.num_special_primes] for d in d1]
+
         # Exit the montgomery.
         self.ntt.mont_redc(c0, level, -1)
         self.ntt.mont_redc(c1, level, -1)
-        
+
         self.ntt.reduce_2q(c0, level, -1)
         self.ntt.reduce_2q(c1, level, -1)
-        
+
         # 7. Return
         return c0, c1
 
-    def switcher_later_part(self,
-                            state, ksk,
-                            src_device_id,
-                            dst_device_id,
-                            level, part_id):
-
+    def switcher_later_part(
+        self, state, ksk, src_device_id, dst_device_id, level, part_id
+    ):
         # Extend basis.
         extended = self.extend(
-            state, src_device_id,
-            level, part_id, dst_device_id)
+            state, src_device_id, level, part_id, dst_device_id
+        )
 
         # ntt extended to prepare polynomial multiplication.
         # extended is in the Montgomery format already.
-        self.ntt.ntt(
-            [extended], level, dst_device_id, -2)
+        self.ntt.ntt([extended], level, dst_device_id, -2)
 
         # Extract the ksk.
         ksk_loc = self.parts_alloc[level][src_device_id][part_id]
@@ -925,10 +1040,12 @@ class ckks_engine:
 
         # Multiply.
         d0 = self.ntt.mont_mult(
-            [extended], [ksk0_data], level, dst_device_id, -2)
+            [extended], [ksk0_data], level, dst_device_id, -2
+        )
         d1 = self.ntt.mont_mult(
-            [extended], [ksk1_data], level, dst_device_id, -2) 
-        
+            [extended], [ksk1_data], level, dst_device_id, -2
+        )
+
         # When returning, un-list the results by taking the 0th element.
         return d0[0], d1[0]
 
@@ -953,7 +1070,7 @@ class ckks_engine:
             montgomery_state=montgomery_state,
             origin=types.origins["ct"],
             level=level,
-            hash=self.hash
+            hash=self.hash,
         )
 
     # -------------------------------------------------------------------------------------------
@@ -967,7 +1084,9 @@ class ckks_engine:
         next_level = level + 1
 
         if next_level >= self.num_levels:
-            raise errors.MaximumLevelError(level=ct.level, level_max=self.num_levels)
+            raise errors.MaximumLevelError(
+                level=ct.level, level_max=self.num_levels
+            )
 
         rescaler_device_id = self.ntt.p.rescaler_loc[level]
         neighbor_devices_before = self.neighbor_devices[level]
@@ -1011,7 +1130,9 @@ class ckks_engine:
                 data1[device_id] = ct.data[1][device_id]
 
         if exact_rounding:
-            rescale_channel_prime_id = self.ntt.p.destination_arrays[level][rescaler_device_id][0]
+            rescale_channel_prime_id = self.ntt.p.destination_arrays[level][
+                rescaler_device_id
+            ][0]
 
             round_at = self.ctx.q[rescale_channel_prime_id] // 2
 
@@ -1019,15 +1140,23 @@ class ckks_engine:
             rounder1 = [[] for _ in range(len_devices_before)]
 
             for device_id in range(len_devices_after):
-                rounder0[device_id] = torch.where(rescaler0[device_id] > round_at, 1, 0)
-                rounder1[device_id] = torch.where(rescaler1[device_id] > round_at, 1, 0)
+                rounder0[device_id] = torch.where(
+                    rescaler0[device_id] > round_at, 1, 0
+                )
+                rounder1[device_id] = torch.where(
+                    rescaler1[device_id] > round_at, 1, 0
+                )
 
         data0 = [(d - s) for d, s in zip(data0, rescaler0)]
         data1 = [(d - s) for d, s in zip(data1, rescaler1)]
 
-        self.ntt.mont_enter_scalar(data0, self.rescale_scales[level], next_level)
+        self.ntt.mont_enter_scalar(
+            data0, self.rescale_scales[level], next_level
+        )
 
-        self.ntt.mont_enter_scalar(data1, self.rescale_scales[level], next_level)
+        self.ntt.mont_enter_scalar(
+            data1, self.rescale_scales[level], next_level
+        )
 
         if exact_rounding:
             data0 = [(d + r) for d, r in zip(data0, rounder0)]
@@ -1044,7 +1173,7 @@ class ckks_engine:
             origin=types.origins["ct"],
             level=next_level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     def create_evk(self, sk: data_struct) -> data_struct:
@@ -1060,12 +1189,14 @@ class ckks_engine:
             origin=types.origins["sk"],
             level=sk.level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         return self.create_key_switching_key(sk2, sk)
 
-    def cc_mult(self, a: data_struct, b: data_struct, evk: data_struct, relin=True) -> data_struct:
+    def cc_mult(
+        self, a: data_struct, b: data_struct, evk: data_struct, relin=True
+    ) -> data_struct:
         if a.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=a.origin, to=types.origins["sk"])
         if b.origin != types.origins["ct"]:
@@ -1103,16 +1234,20 @@ class ckks_engine:
             montgomery_state=True,
             origin=types.origins["ctt"],
             level=level,
-            hash=self.hash
+            hash=self.hash,
         )
         if relin:
             ct_mult = self.relinearize(ct_triplet=ct_mult, evk=evk)
 
         return ct_mult
 
-    def relinearize(self, ct_triplet: data_struct, evk: data_struct) -> data_struct:
+    def relinearize(
+        self, ct_triplet: data_struct, evk: data_struct
+    ) -> data_struct:
         if ct_triplet.origin != types.origins["ctt"]:
-            raise errors.NotMatchType(origin=ct_triplet.origin, to=types.origins["ctt"])
+            raise errors.NotMatchType(
+                origin=ct_triplet.origin, to=types.origins["ctt"]
+            )
         if not ct_triplet.ntt_state or not ct_triplet.montgomery_state:
             raise errors.NotMatchDataStructState(origin=ct_triplet.origin)
 
@@ -1143,14 +1278,16 @@ class ckks_engine:
             montgomery_state=False,
             origin=types.origins["ct"],
             level=level,
-            hash=self.hash
+            hash=self.hash,
         )
 
     # -------------------------------------------------------------------------------------------
     # Rotation.
     # -------------------------------------------------------------------------------------------
 
-    def create_rotation_key(self, sk: data_struct, delta: int, a: list[torch.Tensor] = None) -> data_struct:
+    def create_rotation_key(
+        self, sk: data_struct, delta: int, a: list[torch.Tensor] = None
+    ) -> data_struct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
@@ -1166,7 +1303,7 @@ class ckks_engine:
             origin=types.origins["sk"],
             level=0,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         rotk = self.create_key_switching_key(sk_rotated, sk, a=a)
@@ -1174,20 +1311,23 @@ class ckks_engine:
         return rotk
 
     def rotate_single(self, ct: data_struct, rotk: data_struct) -> data_struct:
-
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if types.origins["rotk"] not in rotk.origin:
-            raise errors.NotMatchType(origin=rotk.origin, to=types.origins["rotk"])
+            raise errors.NotMatchType(
+                origin=rotk.origin, to=types.origins["rotk"]
+            )
 
         level = ct.level
         include_special = ct.include_special
         ntt_state = ct.ntt_state
         montgomery_state = ct.montgomery_state
         origin = rotk.origin
-        delta = int(origin.split(':')[-1])
+        delta = int(origin.split(":")[-1])
 
-        rotated_ct_data = [[rotate(d, delta) for d in ct_data] for ct_data in ct.data]
+        rotated_ct_data = [
+            [rotate(d, delta) for d in ct_data] for ct_data in ct.data
+        ]
 
         # Rotated ct may contain negative numbers.
         mult_type = -2 if include_special else -1
@@ -1203,7 +1343,7 @@ class ckks_engine:
             origin=types.origins["ct"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         rotated_ct = self.switch_key(rotated_ct_rotated_sk, rotk)
@@ -1213,7 +1353,9 @@ class ckks_engine:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
-        galois_key_parts = [self.create_rotation_key(sk, delta) for delta in self.galois_deltas]
+        galois_key_parts = [
+            self.create_rotation_key(sk, delta) for delta in self.galois_deltas
+        ]
 
         galois_key = data_struct(
             data=galois_key_parts,
@@ -1223,16 +1365,23 @@ class ckks_engine:
             origin=types.origins["galk"],
             level=0,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         return galois_key
 
-    def rotate_galois(self, ct: data_struct, gk: data_struct, delta: int, return_circuit=False) -> data_struct:
-
+    def rotate_galois(
+        self,
+        ct: data_struct,
+        gk: data_struct,
+        delta: int,
+        return_circuit=False,
+    ) -> data_struct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if gk.origin != types.origins["galk"]:
-            raise errors.NotMatchType(origin=gk.origin, to=types.origins["galk"])
+            raise errors.NotMatchType(
+                origin=gk.origin, to=types.origins["galk"]
+            )
 
         current_delta = delta % (self.ctx.N // 2)
         galois_circuit = []
@@ -1263,7 +1412,9 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
     def cc_add_double(self, a: data_struct, b: data_struct) -> data_struct:
         if a.origin != types.origins["ct"] or b.origin != types.origins["ct"]:
-            raise errors.NotMatchType(origin=f"{a.origin} and {b.origin}", to=types.origins["ct"])
+            raise errors.NotMatchType(
+                origin=f"{a.origin} and {b.origin}", to=types.origins["ct"]
+            )
         if a.ntt_state or a.montgomery_state:
             raise errors.NotMatchDataStructState(origin=a.origin)
         if b.ntt_state or b.montgomery_state:
@@ -1284,12 +1435,17 @@ class ckks_engine:
             montgomery_state=False,
             origin=types.origins["ct"],
             level=level,
-            hash=self.hash
+            hash=self.hash,
         )
 
     def cc_add_triplet(self, a: data_struct, b: data_struct) -> data_struct:
-        if a.origin != types.origins["ctt"] or b.origin != types.origins["ctt"]:
-            raise errors.NotMatchType(origin=f"{a.origin} and {b.origin}", to=types.origins["ctt"])
+        if (
+            a.origin != types.origins["ctt"]
+            or b.origin != types.origins["ctt"]
+        ):
+            raise errors.NotMatchType(
+                origin=f"{a.origin} and {b.origin}", to=types.origins["ctt"]
+            )
         if not a.ntt_state or not a.montgomery_state:
             raise errors.NotMatchDataStructState(origin=a.origin)
         if not b.ntt_state or not b.montgomery_state:
@@ -1314,14 +1470,16 @@ class ckks_engine:
             origin=types.origins["ctt"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     def cc_add(self, a: data_struct, b: data_struct) -> data_struct:
-
         if a.origin == types.origins["ct"] and b.origin == types.origins["ct"]:
             ct_add = self.cc_add_double(a, b)
-        elif a.origin == types.origins["ctt"] and b.origin == types.origins["ctt"]:
+        elif (
+            a.origin == types.origins["ctt"]
+            and b.origin == types.origins["ctt"]
+        ):
             ct_add = self.cc_add_triplet(a, b)
         else:
             raise errors.DifferentTypeError(a=a.origin, b=b.origin)
@@ -1330,7 +1488,9 @@ class ckks_engine:
 
     def cc_sub_double(self, a: data_struct, b: data_struct) -> data_struct:
         if a.origin != types.origins["ct"] or b.origin != types.origins["ct"]:
-            raise errors.NotMatchType(origin=f"{a.origin} and {b.origin}", to=types.origins["ct"])
+            raise errors.NotMatchType(
+                origin=f"{a.origin} and {b.origin}", to=types.origins["ct"]
+            )
         if a.ntt_state or a.montgomery_state:
             raise errors.NotMatchDataStructState(origin=a.origin)
         if b.ntt_state or b.montgomery_state:
@@ -1353,12 +1513,17 @@ class ckks_engine:
             origin=types.origins["ct"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     def cc_sub_triplet(self, a: data_struct, b: data_struct) -> data_struct:
-        if a.origin != types.origins["ctt"] or b.origin != types.origins["ctt"]:
-            raise errors.NotMatchType(origin=f"{a.origin} and {b.origin}", to=types.origins["ctt"])
+        if (
+            a.origin != types.origins["ctt"]
+            or b.origin != types.origins["ctt"]
+        ):
+            raise errors.NotMatchType(
+                origin=f"{a.origin} and {b.origin}", to=types.origins["ctt"]
+            )
         if not a.ntt_state or not a.montgomery_state:
             raise errors.NotMatchDataStructState(origin=a.origin)
         if not b.ntt_state or not b.montgomery_state:
@@ -1382,7 +1547,7 @@ class ckks_engine:
             origin=types.origins["ctt"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     def cc_sub(self, a: data_struct, b: data_struct) -> data_struct:
@@ -1391,7 +1556,10 @@ class ckks_engine:
 
         if types.origins["ct"] == a.origin and types.origins["ct"] == b.origin:
             ct_sub = self.cc_sub_double(a, b)
-        elif a.origin == types.origins["ctt"] and b.origin == types.origins["ctt"]:
+        elif (
+            a.origin == types.origins["ctt"]
+            and b.origin == types.origins["ctt"]
+        ):
             ct_sub = self.cc_sub_triplet(a, b)
         else:
             raise errors.DifferentTypeError(a=a.origin, b=b.origin)
@@ -1415,13 +1583,19 @@ class ckks_engine:
 
         dst_len_devices = len(self.ntt.p.destination_arrays[dst_level])
 
-        diff_deviation = self.deviations[dst_level] / np.sqrt(self.deviations[src_level])
+        diff_deviation = self.deviations[dst_level] / np.sqrt(
+            self.deviations[src_level]
+        )
 
         deviated_delta = round(self.scale * diff_deviation)
 
         if dst_level - src_level > 0:
-            src_rns_lens = [len(d) for d in self.ntt.p.destination_arrays[src_level]]
-            dst_rns_lens = [len(d) for d in self.ntt.p.destination_arrays[dst_level]]
+            src_rns_lens = [
+                len(d) for d in self.ntt.p.destination_arrays[src_level]
+            ]
+            dst_rns_lens = [
+                len(d) for d in self.ntt.p.destination_arrays[dst_level]
+            ]
 
             diff_rns_lens = [y - x for x, y in zip(dst_rns_lens, src_rns_lens)]
 
@@ -1429,8 +1603,12 @@ class ckks_engine:
             new_ct_data1 = []
 
             for device_id in range(dst_len_devices):
-                new_ct_data0.append(new_ct.data[0][device_id][diff_rns_lens[device_id]:])
-                new_ct_data1.append(new_ct.data[1][device_id][diff_rns_lens[device_id]:])
+                new_ct_data0.append(
+                    new_ct.data[0][device_id][diff_rns_lens[device_id] :]
+                )
+                new_ct_data1.append(
+                    new_ct.data[1][device_id][diff_rns_lens[device_id] :]
+                )
         else:
             new_ct_data0, new_ct_data1 = new_ct.data
 
@@ -1440,7 +1618,11 @@ class ckks_engine:
             q = [self.ctx.q[i] for i in dest]
 
             multiplier = [(deviated_delta * self.ctx.R) % qi for qi in q]
-            multiplier = torch.tensor(multiplier, dtype=self.ctx.torch_dtype, device=self.ntt.devices[device_id])
+            multiplier = torch.tensor(
+                multiplier,
+                dtype=self.ctx.torch_dtype,
+                device=self.ntt.devices[device_id],
+            )
             multipliers.append(multiplier)
 
         self.ntt.mont_enter_scalar(new_ct_data0, multipliers, dst_level)
@@ -1457,7 +1639,7 @@ class ckks_engine:
             origin=types.origins["ct"],
             level=dst_level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         return new_ct
@@ -1465,7 +1647,9 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
     # Fused enc/dec.
     # -------------------------------------------------------------------------------------------
-    def encodecrypt(self, m, pk: data_struct, level: int = 0, padding=True) -> data_struct:
+    def encodecrypt(
+        self, m, pk: data_struct, level: int = 0, padding=True
+    ) -> data_struct:
         if pk.origin != types.origins["pk"]:
             raise errors.NotMatchType(origin=pk.origin, to=types.origins["pk"])
 
@@ -1473,10 +1657,15 @@ class ckks_engine:
             m = self.padding(m=m)
 
         deviation = self.deviations[level]
-        pt = encode(m, scale=self.scale,
-                    device=self.device0, norm=self.norm,
-                    deviation=deviation, rng=self.rng,
-                    return_without_scaling=self.bias_guard)
+        pt = encode(
+            m,
+            scale=self.scale,
+            device=self.device0,
+            norm=self.norm,
+            deviation=deviation,
+            rng=self.rng,
+            return_without_scaling=self.bias_guard,
+        )
 
         if self.bias_guard:
             dc_integral = pt[0].item() // 1
@@ -1484,11 +1673,15 @@ class ckks_engine:
 
             dc_scale = int(dc_integral) * int(self.scale)
             dc_rns = []
-            for device_id, dest in enumerate(self.ntt.p.destination_arrays[level]):
+            for device_id, dest in enumerate(
+                self.ntt.p.destination_arrays[level]
+            ):
                 dci = [dc_scale % self.ctx.q[i] for i in dest]
-                dci = torch.tensor(dci,
-                                   dtype=self.ctx.torch_dtype,
-                                   device=self.ntt.devices[device_id])
+                dci = torch.tensor(
+                    dci,
+                    dtype=self.ctx.torch_dtype,
+                    device=self.ntt.devices[device_id],
+                )
                 dc_rns.append(dci)
 
             pt *= np.float64(self.scale)
@@ -1522,8 +1715,12 @@ class ckks_engine:
         pte0 = self.ntt.mont_add(pt_tiled, e0_tiled, level, mult_type)
 
         start = self.ntt.starts[level]
-        pk0 = [pk.data[0][di][start[di]:] for di in range(self.ntt.num_devices)]
-        pk1 = [pk.data[1][di][start[di]:] for di in range(self.ntt.num_devices)]
+        pk0 = [
+            pk.data[0][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
+        pk1 = [
+            pk.data[1][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
 
         v = self.rng.randint(amax=2, shift=0, repeats=1)
 
@@ -1550,17 +1747,19 @@ class ckks_engine:
             origin=types.origins["ct"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         return ct
 
-    def decryptcode(self, ct: data_struct, sk: data_struct, is_real=False, final_round=True) -> data_struct:
+    def decryptcode(
+        self, ct: data_struct, sk: data_struct, is_real=False, final_round=True
+    ) -> data_struct:
         if (not sk.ntt_state) or (not sk.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk.origin)
 
         level = ct.level
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
 
         if ct.origin == types.origins["ct"]:
             if ct.ntt_state or ct.montgomery_state:
@@ -1587,7 +1786,7 @@ class ckks_engine:
 
             self.ntt.intt_exit_reduce(d0, level)
 
-            sk_data = [sk.data[0][self.ntt.starts[level][0]:]]
+            sk_data = [sk.data[0][self.ntt.starts[level][0] :]]
 
             d1_s = self.ntt.mont_mult(d1, sk_data, level)
 
@@ -1601,9 +1800,14 @@ class ckks_engine:
             pt = self.ntt.mont_add(pt, d2_s2, level)
             self.ntt.reduce_2q(pt, level)
         else:
-            raise errors.NotMatchType(origin=ct.origin, to=f"{types.origins['ct']} or {types.origins['ctt']}")
+            raise errors.NotMatchType(
+                origin=ct.origin,
+                to=f"{types.origins['ct']} or {types.origins['ctt']}",
+            )
 
-        base_at = -self.ctx.num_special_primes - 1 if ct.include_special else -1
+        base_at = (
+            -self.ctx.num_special_primes - 1 if ct.include_special else -1
+        )
         base = pt[0][base_at][None, :]
         scaler = pt[0][0][None, :]
 
@@ -1651,7 +1855,9 @@ class ckks_engine:
         if final_round:
             # The scaler and the base channels are guaranteed to be in the
             # device 0.
-            rounding_prime = self.ntt.qlists[0][-self.ctx.num_special_primes-2]
+            rounding_prime = self.ntt.qlists[0][
+                -self.ctx.num_special_primes - 2
+            ]
             rounder = (scaler[0] > (rounding_prime // 2)) * 1
             scaled[0] += rounder
 
@@ -1662,9 +1868,9 @@ class ckks_engine:
             scale=self.scale,
             correction=correction,
             norm=self.norm,
-            return_without_scaling=self.bias_guard
+            return_without_scaling=self.bias_guard,
         )
-        decoded = decoded[:self.ctx.N // 2].cpu().numpy()
+        decoded = decoded[: self.ctx.N // 2].cpu().numpy()
         ##
 
         decoded = decoded / self.scale * correction
@@ -1680,8 +1886,12 @@ class ckks_engine:
     def encorypt(self, m, pk: data_struct, level: int = 0, padding=True):
         return self.encodecrypt(m, pk=pk, level=level, padding=padding)
 
-    def decrode(self, ct: data_struct, sk: data_struct, is_real=False, final_round=True):
-        return self.decryptcode(ct=ct, sk=sk, is_real=is_real, final_round=final_round)
+    def decrode(
+        self, ct: data_struct, sk: data_struct, is_real=False, final_round=True
+    ):
+        return self.decryptcode(
+            ct=ct, sk=sk, is_real=is_real, final_round=final_round
+        )
 
     # -------------------------------------------------------------------------------------------
     # Conjugation
@@ -1705,7 +1915,7 @@ class ckks_engine:
             origin=types.origins["sk"],
             level=0,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         rotk = self.create_key_switching_key(sk_rotated, sk)
         rotk = rotk._replace(origin=types.origins["conjk"])
@@ -1723,7 +1933,7 @@ class ckks_engine:
             origin=types.origins["ct"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         conj_ct = self.switch_key(conj_ct_sk, conjk)
@@ -1759,7 +1969,7 @@ class ckks_engine:
                 origin=text.origin,
                 level=text.level,
                 hash=text.hash,
-                version=text.version
+                version=text.version,
             )
 
         else:
@@ -1771,7 +1981,7 @@ class ckks_engine:
                 origin=text.origin,
                 level=text.level,
                 hash=text.hash,
-                version=text.version
+                version=text.version,
             )
 
             for d in text.data:
@@ -1802,12 +2012,16 @@ class ckks_engine:
         cpu_size = (num_rows, num_cols)
 
         # Make a cpu tensor to aggregate the data in GPUs.
-        cpu_tensor = torch.empty(cpu_size, dtype=self.ctx.torch_dtype, device='cpu')
+        cpu_tensor = torch.empty(
+            cpu_size, dtype=self.ctx.torch_dtype, device="cpu"
+        )
 
         for ten, dest_i in zip(gpu_data, dest):
             # Check if the tensor is in the gpu.
-            if ten.device.type != 'cuda':
-                raise Exception("To download data to the CPU, it must already be in a GPU!!!")
+            if ten.device.type != "cuda":
+                raise Exception(
+                    "To download data to the CPU, it must already be in a GPU!!!"
+                )
 
             # Copy in the data.
             cpu_tensor[dest_i] = ten.cpu()
@@ -1821,8 +2035,10 @@ class ckks_engine:
         cpu_tensor = cpu_data[0]
 
         # Check if the tensor is in the cpu.
-        if cpu_tensor.device.type != 'cpu':
-            raise Exception("To upload data to GPUs, it must already be in the CPU!!!")
+        if cpu_tensor.device.type != "cpu":
+            raise Exception(
+                "To upload data to GPUs, it must already be in the CPU!!!"
+            )
 
         # Prepare destination arrays.
         if include_special:
@@ -1850,8 +2066,8 @@ class ckks_engine:
 
     def move_tensors(self, data, level, include_special, direction):
         func = {
-            'gpu2cpu': self.download_to_cpu,
-            'cpu2gpu': self.upload_to_gpu
+            "gpu2cpu": self.download_to_cpu,
+            "cpu2gpu": self.upload_to_gpu,
         }[direction]
 
         # Some data has 1 depth.
@@ -1865,26 +2081,37 @@ class ckks_engine:
                 new_data.append(moved)
         return new_data
 
-    def move_to(self, text, direction='gpu2cpu'):
+    def move_to(self, text, direction="gpu2cpu"):
         if not isinstance(text.data[0], data_struct):
             level = text.level
             include_special = text.include_special
 
             # data are tensors.
-            data = self.move_tensors(text.data, level,
-                                     include_special, direction)
+            data = self.move_tensors(
+                text.data, level, include_special, direction
+            )
 
             wrapper = data_struct(
-                data, text.include_special,
-                text.ntt_state, text.montgomery_state,
-                text.origin, text.level, text.hash, text.version
+                data,
+                text.include_special,
+                text.ntt_state,
+                text.montgomery_state,
+                text.origin,
+                text.level,
+                text.hash,
+                text.version,
             )
 
         else:
             wrapper = data_struct(
-                [], text.include_special,
-                text.ntt_state, text.montgomery_state,
-                text.origin, text.level, text.hash, text.version
+                [],
+                text.include_special,
+                text.ntt_state,
+                text.montgomery_state,
+                text.origin,
+                text.level,
+                text.hash,
+                text.version,
             )
 
             for d in text.data:
@@ -1896,10 +2123,10 @@ class ckks_engine:
         # Shortcuts
 
     def cpu(self, ct):
-        return self.move_to(ct, 'gpu2cpu')
+        return self.move_to(ct, "gpu2cpu")
 
     def cuda(self, ct):
-        return self.move_to(ct, 'cpu2gpu')
+        return self.move_to(ct, "cpu2gpu")
 
         # -------------------------------------------------------------------------------------------
         # check device.
@@ -1953,16 +2180,19 @@ class ckks_engine:
                 for device_id, d in enumerate(part):
                     device = self.ntt.devices[device_id]
 
-                    if (device_id == len(part) - 1) and \
-                            (part_i == len(data) - 1):
+                    if (device_id == len(part) - 1) and (
+                        part_i == len(data) - 1
+                    ):
                         final = True
                     else:
                         final = False
 
                     lead_text = self.tree_lead_text(-level, final=final)
 
-                    print(f"{lead_text} tensor at device {device} with "
-                          f"shape {d.shape}.")
+                    print(
+                        f"{lead_text} tensor at device {device} with "
+                        f"shape {d.shape}."
+                    )
         else:
             for device_id, d in enumerate(data):
                 device = self.ntt.devices[device_id]
@@ -1974,8 +2204,10 @@ class ckks_engine:
 
                 lead_text = self.tree_lead_text(-level, final=final)
 
-                print(f"{lead_text} tensor at device {device} with "
-                      f"shape {d.shape}.")
+                print(
+                    f"{lead_text} tensor at device {device} with "
+                    f"shape {d.shape}."
+                )
 
     def print_data_structure(self, text, level=0):
         lead_text = self.tree_lead_text(level)
@@ -1991,8 +2223,8 @@ class ckks_engine:
     # Save and load.
     # -------------------------------------------------------------------------------------------
 
-    def auto_generate_filename(self, fmt_str='%Y%m%d%H%M%s%f'):
-        return datetime.datetime.now().strftime(fmt_str) + '.pkl'
+    def auto_generate_filename(self, fmt_str="%Y%m%d%H%M%s%f"):
+        return datetime.datetime.now().strftime(fmt_str) + ".pkl"
 
     def save(self, text, filename=None):
         if filename is None:
@@ -2002,17 +2234,17 @@ class ckks_engine:
 
         # Check if the text is in the CPU.
         # If not, move to CPU.
-        if self.device(text) != 'cpu':
+        if self.device(text) != "cpu":
             cpu_text = self.cpu(text)
         else:
             cpu_text = text
 
-        with savepath.open('wb') as f:
+        with savepath.open("wb") as f:
             pickle.dump(cpu_text, f)
 
     def load(self, filename, move_to_gpu=True):
         savepath = Path(filename)
-        with savepath.open('rb') as f:
+        with savepath.open("rb") as f:
             # gc.disable()
             cpu_text = pickle.load(f)
             # gc.enable()
@@ -2030,7 +2262,9 @@ class ckks_engine:
 
     def negate(self, ct: data_struct) -> data_struct:
         if ct.origin != types.origins["ct"]:
-            raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])  # ctt
+            raise errors.NotMatchType(
+                origin=ct.origin, to=types.origins["ct"]
+            )  # ctt
         new_ct = self.clone(ct)
 
         new_data = new_ct.data
@@ -2056,20 +2290,24 @@ class ckks_engine:
 
         dest = self.ntt.p.destination_arrays[ct.level]
 
-        partitioned_mont_scalar = [[mont_scalar[i] for i in desti] for desti in dest]
+        partitioned_mont_scalar = [
+            [mont_scalar[i] for i in desti] for desti in dest
+        ]
         tensorized_scalar = []
         for device_id in range(device_len):
             scal_tensor = torch.tensor(
                 partitioned_mont_scalar[device_id],
                 dtype=self.ctx.torch_dtype,
-                device=self.ntt.devices[device_id]
+                device=self.ntt.devices[device_id],
             )
             tensorized_scalar.append(scal_tensor)
 
         new_ct = self.clone(ct)
         new_data = new_ct.data
         for i in [0, 1]:
-            self.ntt.mont_enter_scalar(new_data[i], tensorized_scalar, ct.level)
+            self.ntt.mont_enter_scalar(
+                new_data[i], tensorized_scalar, ct.level
+            )
             self.ntt.reduce_2q(new_data[i], ct.level)
 
         return new_ct
@@ -2078,19 +2316,22 @@ class ckks_engine:
         device_len = len(ct.data[0])
 
         scaled_scalar = int(
-            scalar * self.scale * np.sqrt(self.deviations[ct.level + 1]) + 0.5)
+            scalar * self.scale * np.sqrt(self.deviations[ct.level + 1]) + 0.5
+        )
 
         mont_scalar = [(scaled_scalar * self.ctx.R) % qi for qi in self.ctx.q]
 
         dest = self.ntt.p.destination_arrays[ct.level]
 
-        partitioned_mont_scalar = [[mont_scalar[i] for i in dest_i] for dest_i in dest]
+        partitioned_mont_scalar = [
+            [mont_scalar[i] for i in dest_i] for dest_i in dest
+        ]
         tensorized_scalar = []
         for device_id in range(device_len):
             scal_tensor = torch.tensor(
                 partitioned_mont_scalar[device_id],
                 dtype=self.ctx.torch_dtype,
-                device=self.ntt.devices[device_id]
+                device=self.ntt.devices[device_id],
             )
             tensorized_scalar.append(scal_tensor)
 
@@ -2098,7 +2339,9 @@ class ckks_engine:
         new_data = new_ct.data
 
         for i in [0, 1]:
-            self.ntt.mont_enter_scalar(new_data[i], tensorized_scalar, ct.level)
+            self.ntt.mont_enter_scalar(
+                new_data[i], tensorized_scalar, ct.level
+            )
             self.ntt.reduce_2q(new_data[i], ct.level)
 
         return self.rescale(new_ct)
@@ -2106,9 +2349,11 @@ class ckks_engine:
     def add_scalar(self, ct, scalar):
         device_len = len(ct.data[0])
 
-        scaled_scalar = int(scalar * self.scale * self.deviations[ct.level] + 0.5)
+        scaled_scalar = int(
+            scalar * self.scale * self.deviations[ct.level] + 0.5
+        )
 
-        if self.norm == 'backward':
+        if self.norm == "backward":
             scaled_scalar *= self.ctx.N
 
         scaled_scalar *= self.int_scale
@@ -2117,13 +2362,15 @@ class ckks_engine:
 
         dest = self.ntt.p.destination_arrays[ct.level]
 
-        partitioned_mont_scalar = [[scaled_scalar[i] for i in desti] for desti in dest]
+        partitioned_mont_scalar = [
+            [scaled_scalar[i] for i in desti] for desti in dest
+        ]
         tensorized_scalar = []
         for device_id in range(device_len):
             scal_tensor = torch.tensor(
                 partitioned_mont_scalar[device_id],
                 dtype=self.ctx.torch_dtype,
-                device=self.ntt.devices[device_id]
+                device=self.ntt.devices[device_id],
             )
             tensorized_scalar.append(scal_tensor)
 
@@ -2296,7 +2543,7 @@ class ckks_engine:
 
     def sum(self, ct, gk):
         new_ct = self.clone(ct)
-        for roti in range(self.ctx.logN-1):
+        for roti in range(self.ctx.logN - 1):
             rotk = gk.data[roti]
             rot_ct = self.rotate_single(new_ct, rotk)
             new_ct = self.add(rot_ct, new_ct)
@@ -2306,27 +2553,36 @@ class ckks_engine:
         # Divide by num_slots.
         # The cipher text is refreshed here, and hence
         # doesn't beed to be refreshed at roti=0 in the loop.
-        new_ct = self.mult(1/self.num_slots/alpha, ct)
-        
-        for roti in range(self.ctx.logN-1):
+        new_ct = self.mult(1 / self.num_slots / alpha, ct)
+
+        for roti in range(self.ctx.logN - 1):
             rotk = gk.data[roti]
             rot_ct = self.rotate_single(new_ct, rotk)
             new_ct = self.add(rot_ct, new_ct)
         return new_ct
 
-    def cov(self, ct_a: data_struct, ct_b: data_struct,
-            evk: data_struct, gk: data_struct) -> data_struct:
+    def cov(
+        self,
+        ct_a: data_struct,
+        ct_b: data_struct,
+        evk: data_struct,
+        gk: data_struct,
+    ) -> data_struct:
         cta_mean = self.mean(ct_a, gk)
         ctb_mean = self.mean(ct_b, gk)
 
         cta_dev = self.sub(ct_a, cta_mean)
         ctb_dev = self.sub(ct_b, ctb_mean)
 
-        ct_cov = self.mult(self.mult(cta_dev, ctb_dev, evk), 1 / (self.num_slots - 1))
+        ct_cov = self.mult(
+            self.mult(cta_dev, ctb_dev, evk), 1 / (self.num_slots - 1)
+        )
 
         return ct_cov
 
-    def pow(self, ct: data_struct, power: int, evk: data_struct) -> data_struct:
+    def pow(
+        self, ct: data_struct, power: int, evk: data_struct
+    ) -> data_struct:
         current_exponent = 2
         pow_list = [ct]
         while current_exponent <= power:
@@ -2342,11 +2598,13 @@ class ckks_engine:
             pow_ind = math.floor(math.log2(remaining_exponent))
             pow_term = pow_list[pow_ind]
             new_ct = self.auto_cc_mult(new_ct, pow_term, evk)
-            remaining_exponent -= 2 ** pow_ind
+            remaining_exponent -= 2**pow_ind
 
         return new_ct
 
-    def square(self, ct: data_struct, evk: data_struct, relin=True) -> data_struct:
+    def square(
+        self, ct: data_struct, evk: data_struct, relin=True
+    ) -> data_struct:
         x = self.rescale(ct)
 
         level = x.level
@@ -2371,7 +2629,7 @@ class ckks_engine:
             origin=types.origins["ctt"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         if relin:
             ct_mult = self.relinearize(ct_triplet=ct_mult, evk=evk)
@@ -2385,7 +2643,9 @@ class ckks_engine:
         crs = self.clone(pk).data[1]
         return crs
 
-    def multiparty_create_public_key(self, sk: data_struct, a=None, include_special=False) -> data_struct:
+    def multiparty_create_public_key(
+        self, sk: data_struct, a=None, include_special=False
+    ) -> data_struct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         if include_special and not sk.include_special:
@@ -2401,8 +2661,7 @@ class ckks_engine:
 
         if a is None:
             a = self.rng.randint(
-                self.ntt.q_prepack[mult_type][level][0],
-                repeats=repeats
+                self.ntt.q_prepack[mult_type][level][0], repeats=repeats
             )
 
         sa = self.ntt.mont_mult(a, sk.data, 0, mult_type)
@@ -2415,12 +2674,23 @@ class ckks_engine:
             origin=types.origins["pk"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         return pk
 
-    def multiparty_create_collective_public_key(self, pks: list[data_struct]) -> data_struct:
-        data, include_special, ntt_state, montgomery_state, origin, level, hash_, version = pks[0]
+    def multiparty_create_collective_public_key(
+        self, pks: list[data_struct]
+    ) -> data_struct:
+        (
+            data,
+            include_special,
+            ntt_state,
+            montgomery_state,
+            origin,
+            level,
+            hash_,
+            version,
+        ) = pks[0]
         mult_type = -2 if include_special else -1
         b = [b.clone() for b in data[0]]  # num of gpus
         a = [a.clone() for a in data[1]]
@@ -2436,7 +2706,7 @@ class ckks_engine:
             origin=types.origins["pk"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         return cpk
 
@@ -2456,7 +2726,7 @@ class ckks_engine:
 
         self.ntt.enter_ntt([a], level)
 
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
 
         sa = self.ntt.mont_mult([a], [sk_data], level)
         self.ntt.intt_exit(sa, level)
@@ -2465,7 +2735,9 @@ class ckks_engine:
 
         return pt
 
-    def multiparty_decrypt_partial(self, ct: data_struct, sk: data_struct) -> data_struct:
+    def multiparty_decrypt_partial(
+        self, ct: data_struct, sk: data_struct
+    ) -> data_struct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if sk.origin != types.origins["sk"]:
@@ -2475,20 +2747,31 @@ class ckks_engine:
         if not sk.ntt_state or not sk.montgomery_state:
             raise errors.NotMatchDataStructState(origin=sk.origin)
 
-        data, include_special, ntt_state, montgomery_state, origin, level, hash_, version = ct
+        (
+            data,
+            include_special,
+            ntt_state,
+            montgomery_state,
+            origin,
+            level,
+            hash_,
+            version,
+        ) = ct
 
         a = ct.data[1][0].clone()
 
         self.ntt.enter_ntt([a], level)
 
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
 
         sa = self.ntt.mont_mult([a], [sk_data], level)
         self.ntt.intt_exit(sa, level)
 
         return sa
 
-    def multiparty_decrypt_fusion(self, pcts: list, level=0, include_special=False):
+    def multiparty_decrypt_fusion(
+        self, pcts: list, level=0, include_special=False
+    ):
         pt = [x.clone() for x in pcts[0]]
         for pct in pcts[1:]:
             pt = self.ntt.mont_add(pt, pct, level)
@@ -2514,9 +2797,16 @@ class ckks_engine:
     #### Multiparty. ROTATION
     #### -------------------------------------------------------------------------------------------
 
-    def multiparty_create_key_switching_key(self, sk_src: data_struct, sk_dst: data_struct, a=None) -> data_struct:
-        if sk_src.origin != types.origins["sk"] or sk_src.origin != types.origins["sk"]:
-            raise errors.NotMatchType(origin="not a secret key", to=types.origins["sk"])
+    def multiparty_create_key_switching_key(
+        self, sk_src: data_struct, sk_dst: data_struct, a=None
+    ) -> data_struct:
+        if (
+            sk_src.origin != types.origins["sk"]
+            or sk_src.origin != types.origins["sk"]
+        ):
+            raise errors.NotMatchType(
+                origin="not a secret key", to=types.origins["sk"]
+            )
         if (not sk_src.ntt_state) or (not sk_src.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk_src.origin)
         if (not sk_dst.ntt_state) or (not sk_dst.montgomery_state):
@@ -2525,29 +2815,36 @@ class ckks_engine:
         level = 0
 
         stops = self.ntt.stops[-1]
-        Psk_src = [sk_src.data[di][:stops[di]].clone() for di in range(self.ntt.num_devices)]
+        Psk_src = [
+            sk_src.data[di][: stops[di]].clone()
+            for di in range(self.ntt.num_devices)
+        ]
 
         self.ntt.mont_enter_scalar(Psk_src, self.mont_PR, level)
 
         ksk = [[] for _ in range(self.ntt.p.num_partitions + 1)]
         for device_id in range(self.ntt.num_devices):
             for part_id, part in enumerate(self.ntt.p.p[level][device_id]):
-                global_part_id = self.ntt.p.part_allocations[device_id][part_id]
+                global_part_id = self.ntt.p.part_allocations[device_id][
+                    part_id
+                ]
 
                 crs = a[global_part_id] if a else None
-                pk = self.multiparty_create_public_key(sk_dst, include_special=True, a=crs)
+                pk = self.multiparty_create_public_key(
+                    sk_dst, include_special=True, a=crs
+                )
                 key = tuple(part)
                 astart = part[0]
                 astop = part[-1] + 1
                 shard = Psk_src[device_id][astart:astop]
                 pk_data = pk.data[0][device_id][astart:astop]
 
-                _2q = self.ntt.parts_pack[device_id][key]['_2q']
+                _2q = self.ntt.parts_pack[device_id][key]["_2q"]
                 update_part = ntt_cuda.mont_add([pk_data], [shard], _2q)[0]
                 pk_data.copy_(update_part, non_blocking=True)
 
                 # Name the pk.
-                pk_name = f'key switch key part index {global_part_id}'
+                pk_name = f"key switch key part index {global_part_id}"
                 pk = pk._replace(origin=pk_name)
 
                 ksk[global_part_id] = pk
@@ -2560,10 +2857,12 @@ class ckks_engine:
             origin=types.origins["ksk"],
             level=level,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
-    def multiparty_create_rotation_key(self, sk: data_struct, delta: int, a=None) -> data_struct:
+    def multiparty_create_rotation_key(
+        self, sk: data_struct, delta: int, a=None
+    ) -> data_struct:
         sk_new_data = [s.clone() for s in sk.data]
         self.ntt.intt(sk_new_data)
         sk_new_data = [rotate(s, delta) for s in sk_new_data]
@@ -2576,23 +2875,34 @@ class ckks_engine:
             origin=types.origins["sk"],
             level=0,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         rotk = self.multiparty_create_key_switching_key(sk_rotated, sk, a=a)
         rotk = rotk._replace(origin=types.origins["rotk"] + f"{delta}")
         return rotk
 
-    def multiparty_generate_rotation_key(self, rotks: list[data_struct]) -> data_struct:
+    def multiparty_generate_rotation_key(
+        self, rotks: list[data_struct]
+    ) -> data_struct:
         crotk = self.clone(rotks[0])
         for rotk in rotks[1:]:
             for ksk_idx in range(len(rotk.data)):
-                update_parts = self.ntt.mont_add(crotk.data[ksk_idx].data[0], rotk.data[ksk_idx].data[0])
-                crotk.data[ksk_idx].data[0][0].copy_(update_parts[0], non_blocking=True)
+                update_parts = self.ntt.mont_add(
+                    crotk.data[ksk_idx].data[0], rotk.data[ksk_idx].data[0]
+                )
+                crotk.data[ksk_idx].data[0][0].copy_(
+                    update_parts[0], non_blocking=True
+                )
         return crotk
 
     def generate_rotation_crs(self, rotk: data_struct):
-        if types.origins["rotk"] not in rotk.origin and types.origins["ksk"] != rotk.origin:
-            raise errors.NotMatchType(origin=rotk.origin, to=types.origins["ksk"])
+        if (
+            types.origins["rotk"] not in rotk.origin
+            and types.origins["ksk"] != rotk.origin
+        ):
+            raise errors.NotMatchType(
+                origin=rotk.origin, to=types.origins["ksk"]
+            )
         crss = []
         for ksk in rotk.data:
             crss.append(ksk.data[1])
@@ -2604,18 +2914,24 @@ class ckks_engine:
 
     def generate_galois_crs(self, galk: data_struct):
         if galk.origin != types.origins["galk"]:
-            raise errors.NotMatchType(origin=galk.origin, to=types.origins["galk"])
+            raise errors.NotMatchType(
+                origin=galk.origin, to=types.origins["galk"]
+            )
         crs_s = []
         for rotk in galk.data:
             crss = [ksk.data[1] for ksk in rotk.data]
             crs_s.append(crss)
         return crs_s
 
-    def multiparty_create_galois_key(self, sk: data_struct, a: list) -> data_struct:
+    def multiparty_create_galois_key(
+        self, sk: data_struct, a: list
+    ) -> data_struct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         galois_key_parts = [
-            self.multiparty_create_rotation_key(sk, self.galois_deltas[idx], a=a[idx])
+            self.multiparty_create_rotation_key(
+                sk, self.galois_deltas[idx], a=a[idx]
+            )
             for idx in range(len(self.galois_deltas))
         ]
 
@@ -2627,20 +2943,24 @@ class ckks_engine:
             origin=types.origins["galk"],
             level=0,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         return galois_key
 
-    def multiparty_generate_galois_key(self, galks: list[data_struct]) -> data_struct:
+    def multiparty_generate_galois_key(
+        self, galks: list[data_struct]
+    ) -> data_struct:
         cgalk = self.clone(galks[0])
         for galk in galks[1:]:  # galk
             for rotk_idx in range(len(galk.data)):  # rotk
                 for ksk_idx in range(len(galk.data[rotk_idx].data)):  # ksk
                     update_parts = self.ntt.mont_add(
                         cgalk.data[rotk_idx].data[ksk_idx].data[0],
-                        galk.data[rotk_idx].data[ksk_idx].data[0]
+                        galk.data[rotk_idx].data[ksk_idx].data[0],
                     )
-                    cgalk.data[rotk_idx].data[ksk_idx].data[0][0].copy_(update_parts[0], non_blocking=True)
+                    cgalk.data[rotk_idx].data[ksk_idx].data[0][0].copy_(
+                        update_parts[0], non_blocking=True
+                    )
         return cgalk
 
     #### -------------------------------------------------------------------------------------------
@@ -2651,53 +2971,80 @@ class ckks_engine:
         evk_sum = self.clone(evks_share[0])
         for evk_share in evks_share[1:]:
             for ksk_idx in range(len(evk_sum.data)):
-                update_parts = self.ntt.mont_add(evk_sum.data[ksk_idx].data[0], evk_share.data[ksk_idx].data[0])
+                update_parts = self.ntt.mont_add(
+                    evk_sum.data[ksk_idx].data[0],
+                    evk_share.data[ksk_idx].data[0],
+                )
                 for dev_id in range(len(update_parts)):
-                    evk_sum.data[ksk_idx].data[0][dev_id].copy_(update_parts[dev_id], non_blocking=True)
+                    evk_sum.data[ksk_idx].data[0][dev_id].copy_(
+                        update_parts[dev_id], non_blocking=True
+                    )
 
         return evk_sum
 
-    def multiparty_mult_evk_share_sum(self, evk_sum: data_struct, sk: data_struct):
+    def multiparty_mult_evk_share_sum(
+        self, evk_sum: data_struct, sk: data_struct
+    ):
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         evk_sum_mult = self.clone(evk_sum)
 
         for ksk_idx in range(len(evk_sum.data)):
-            update_part_b = self.ntt.mont_mult(evk_sum_mult.data[ksk_idx].data[0], sk.data)
-            update_part_a = self.ntt.mont_mult(evk_sum_mult.data[ksk_idx].data[1], sk.data)
+            update_part_b = self.ntt.mont_mult(
+                evk_sum_mult.data[ksk_idx].data[0], sk.data
+            )
+            update_part_a = self.ntt.mont_mult(
+                evk_sum_mult.data[ksk_idx].data[1], sk.data
+            )
             for dev_id in range(len(update_part_b)):
-                evk_sum_mult.data[ksk_idx].data[0][dev_id].copy_(update_part_b[dev_id], non_blocking=True)
-                evk_sum_mult.data[ksk_idx].data[1][dev_id].copy_(update_part_a[dev_id], non_blocking=True)
+                evk_sum_mult.data[ksk_idx].data[0][dev_id].copy_(
+                    update_part_b[dev_id], non_blocking=True
+                )
+                evk_sum_mult.data[ksk_idx].data[1][dev_id].copy_(
+                    update_part_a[dev_id], non_blocking=True
+                )
 
         return evk_sum_mult
 
-    def multiparty_sum_evk_share_mult(self, evk_sum_mult: list[data_struct]) -> data_struct:
+    def multiparty_sum_evk_share_mult(
+        self, evk_sum_mult: list[data_struct]
+    ) -> data_struct:
         cevk = self.clone(evk_sum_mult[0])
         for evk in evk_sum_mult[1:]:
             for ksk_idx in range(len(cevk.data)):
-                update_part_b = self.ntt.mont_add(cevk.data[ksk_idx].data[0], evk.data[ksk_idx].data[0])
-                update_part_a = self.ntt.mont_add(cevk.data[ksk_idx].data[1], evk.data[ksk_idx].data[1])
+                update_part_b = self.ntt.mont_add(
+                    cevk.data[ksk_idx].data[0], evk.data[ksk_idx].data[0]
+                )
+                update_part_a = self.ntt.mont_add(
+                    cevk.data[ksk_idx].data[1], evk.data[ksk_idx].data[1]
+                )
                 for dev_id in range(len(update_part_b)):
-                    cevk.data[ksk_idx].data[0][dev_id].copy_(update_part_b[dev_id], non_blocking=True)
-                    cevk.data[ksk_idx].data[1][dev_id].copy_(update_part_a[dev_id], non_blocking=True)
+                    cevk.data[ksk_idx].data[0][dev_id].copy_(
+                        update_part_b[dev_id], non_blocking=True
+                    )
+                    cevk.data[ksk_idx].data[1][dev_id].copy_(
+                        update_part_a[dev_id], non_blocking=True
+                    )
         return cevk
 
     #### -------------------------------------------------------------------------------------------
     ####  Statistics
     #### -------------------------------------------------------------------------------------------
 
-    def sqrt(self, ct: data_struct, evk: data_struct, e=0.0001, alpha=0.0001) -> data_struct:
+    def sqrt(
+        self, ct: data_struct, evk: data_struct, e=0.0001, alpha=0.0001
+    ) -> data_struct:
         a = self.clone(ct)
         b = self.clone(ct)
 
         while e <= 1 - alpha:
-            k = float(np.roots([1 - e ** 3, -6 + 6 * e ** 2, 9 - 9 * e])[1])
+            k = float(np.roots([1 - e**3, -6 + 6 * e**2, 9 - 9 * e])[1])
             t = self.mult_scalar(a, k, evk)
             b0 = self.sub_scalar(t, 3)
-            b1 = self.mult_scalar(b, (k ** 0.5) / 2, evk)
+            b1 = self.mult_scalar(b, (k**0.5) / 2, evk)
             b = self.cc_mult(b0, b1, evk)
 
-            a0 = self.mult_scalar(a, (k ** 3) / 4)
+            a0 = self.mult_scalar(a, (k**3) / 4)
             t = self.sub_scalar(a, 3 / k)
             a1 = self.square(t, evk)
             a = self.cc_mult(a0, a1, evk)
@@ -2705,7 +3052,9 @@ class ckks_engine:
 
         return b
 
-    def var(self, ct: data_struct, evk: data_struct, gk: data_struct, relin=False) -> data_struct:
+    def var(
+        self, ct: data_struct, evk: data_struct, gk: data_struct, relin=False
+    ) -> data_struct:
         ct_mean = self.mean(ct=ct, gk=gk)
         dev = self.sub(ct, ct_mean)
         dev = self.square(ct=dev, evk=evk, relin=relin)
@@ -2714,7 +3063,9 @@ class ckks_engine:
         ct_var = self.mean(ct=dev, gk=gk)
         return ct_var
 
-    def std(self, ct: data_struct, evk: data_struct, gk: data_struct, relin=False) -> data_struct:
+    def std(
+        self, ct: data_struct, evk: data_struct, gk: data_struct, relin=False
+    ) -> data_struct:
         ct_var = self.var(ct=ct, evk=evk, gk=gk, relin=relin)
         ct_std = self.sqrt(ct=ct_var, evk=evk)
         return ct_std

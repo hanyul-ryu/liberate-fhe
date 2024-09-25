@@ -4,7 +4,6 @@ import time
 
 import numpy as np
 import torch
-
 from liberate_cpu.utils.threadpool import jthreadpool
 
 from ..fhe.presets import errors
@@ -25,8 +24,15 @@ def is_power_of_two(n):
 @errors.log_error
 class NttContext:
     def __init__(
-            self, ctx, index_type=torch.int32, devices=None, verbose=False, num_threads=None, thread_load=1, tp=None,
-            **kwargs
+        self,
+        ctx,
+        index_type=torch.int32,
+        devices=None,
+        verbose=False,
+        num_threads=None,
+        thread_load=1,
+        tp=None,
+        **kwargs,
     ):
         # Mark the start time.
         t0 = time.time()
@@ -184,7 +190,7 @@ class NttContext:
         ]
 
     def prepare_parameters(self):
-        scale = 2 ** self.ctx.scale_bits
+        scale = 2**self.ctx.scale_bits
         self.Rs_scale = self.partition_variable(
             [(Rs * scale) % q for Rs, q in zip(self.ctx.R_square, self.ctx.q)]
         )
@@ -238,7 +244,7 @@ class NttContext:
 
     def param_pack(self, param, astart, astop, remove_empty=True):
         pack = [
-            param[dev_id][astart[dev_id]: astop[dev_id]]
+            param[dev_id][astart[dev_id] : astop[dev_id]]
             for dev_id in range(self.num_devices)
         ]
 
@@ -328,7 +334,7 @@ class NttContext:
             self.parts_pack.append({})
 
             for i in range(
-                    len(self.p.destination_arrays_with_special[0][device_id])
+                len(self.p.destination_arrays_with_special[0][device_id])
             ):
                 self.parts_pack[device_id][i,] = self.params_pack_device(
                     device_id, i, i
@@ -364,14 +370,14 @@ class NttContext:
             for level in range(self.num_levels):
                 # We do basis extension for only ordinary parts.
                 for part_index, part in enumerate(
-                        self.p.destination_parts[level][device_id]
+                    self.p.destination_parts[level][device_id]
                 ):
                     key = tuple(self.p.p[level][device_id][part_index])
 
                     # Check if Y and L are already calculated for this part.
                     if (
-                            "Y_scalar"
-                            not in self.parts_pack[device_id][key].keys()
+                        "Y_scalar"
+                        not in self.parts_pack[device_id][key].keys()
                     ):
                         alpha = len(part)
                         m = [self.ctx.q[idx] for idx in part]
@@ -577,7 +583,9 @@ class NttContext:
     # Helper functions to do the Montgomery and NTT operations.
     # -------------------------------------------------------------------------------------------------
 
-    def mont_enter(self, a, lvl=0, mult_type=-1, part=0, Rs_pack=None, mont_pack=None):
+    def mont_enter(
+        self, a, lvl=0, mult_type=-1, part=0, Rs_pack=None, mont_pack=None
+    ):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
@@ -593,20 +601,29 @@ class NttContext:
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.mont_enter(a, self.Rs_scale_prepack[mult_type][lvl][part], *self.mont_prepack[mult_type][lvl][part],
-                           self.tp, chunk)
+        ntt_cpu.mont_enter(
+            a,
+            self.Rs_scale_prepack[mult_type][lvl][part],
+            *self.mont_prepack[mult_type][lvl][part],
+            self.tp,
+            chunk,
+        )
 
     def mont_enter_scalar(self, a, b, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.mont_enter(a, b, *self.mont_prepack[mult_type][lvl][part], self.tp, chunk)
+        ntt_cpu.mont_enter(
+            a, b, *self.mont_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def mont_mult(self, a, b, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        return ntt_cpu.mont_mult(a, b, *self.mont_prepack[mult_type][lvl][part], self.tp, chunk)
+        return ntt_cpu.mont_mult(
+            a, b, *self.mont_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def ntt(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
@@ -618,44 +635,61 @@ class NttContext:
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.enter_ntt(a, self.Rs_prepack[mult_type][lvl][part], *self.ntt_prepack[mult_type][lvl][part], self.tp,
-                          chunk)
+        ntt_cpu.enter_ntt(
+            a,
+            self.Rs_prepack[mult_type][lvl][part],
+            *self.ntt_prepack[mult_type][lvl][part],
+            self.tp,
+            chunk,
+        )
 
     def intt(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1) // 2
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.intt(a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk)
+        ntt_cpu.intt(
+            a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def mont_redc(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.mont_redc(a, *self.mont_prepack[mult_type][lvl][part], self.tp, chunk)
+        ntt_cpu.mont_redc(
+            a, *self.mont_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def intt_exit(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.intt_exit(a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk)
+        ntt_cpu.intt_exit(
+            a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def intt_exit_reduce(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.intt_exit_reduce(a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk)
+        ntt_cpu.intt_exit_reduce(
+            a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def intt_exit_reduce_signed(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.intt_exit_reduce_signed(a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk)
+        ntt_cpu.intt_exit_reduce_signed(
+            a, *self.intt_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def reduce_2q(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.reduce_2q(a, self._2q_prepack[mult_type][lvl][part], self.tp, chunk)
+        ntt_cpu.reduce_2q(
+            a, self._2q_prepack[mult_type][lvl][part], self.tp, chunk
+        )
 
     def reduce_2q_with_parameter(self, a, _2q):
         C = a[0].size(0)
@@ -667,13 +701,17 @@ class NttContext:
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.make_signed(a, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk)
+        ntt_cpu.make_signed(
+            a, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk
+        )
 
     def make_unsigned(self, a, lvl=0, mult_type=-1, part=0):
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        ntt_cpu.make_unsigned(a, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk)
+        ntt_cpu.make_unsigned(
+            a, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk
+        )
 
     def mont_add(self, a, b, lvl=0, mult_type=-1, part=0, _2q=None):
         C = a[0].size(0)
@@ -694,9 +732,17 @@ class NttContext:
         C = a[0].size(0)
         L = a[0].size(1)
         chunk = C * L // (self.num_threads * self.thread_load)
-        return [ntt_cpu.mont_sub(a, b, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk)]
+        return [
+            ntt_cpu.mont_sub(
+                a, b, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk
+            )
+        ]
 
     def tile_unsigned(self, a, lvl=0, mult_type=-1, part=0):
         L = a[0].view(-1).size(0)
         chunk = L // (self.num_threads * self.thread_load)
-        return [ntt_cpu.tile_unsigned(a, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk)]
+        return [
+            ntt_cpu.tile_unsigned(
+                a, self._2q_prepack[mult_type][lvl][part][0], self.tp, chunk
+            )
+        ]

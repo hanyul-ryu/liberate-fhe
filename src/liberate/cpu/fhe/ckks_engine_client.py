@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-
 from liberate_cpu.utils.threadpool import jthreadpool
 
 from ..csprng.csprng_cpu import Csprng
@@ -21,29 +20,31 @@ from .version import VERSION
 
 class ClientCkksEngine:
     @errors.log_error
-    def __init__(self,
-                 devices: list[int] = None,
-                 verbose: bool = False,
-                 bias_guard: bool = True,
-                 norm: str = 'forward',
-                 num_threads=None,
-                 thread_load=None,
-                 **ctx_params):
+    def __init__(
+        self,
+        devices: list[int] = None,
+        verbose: bool = False,
+        bias_guard: bool = True,
+        norm: str = "forward",
+        num_threads=None,
+        thread_load=None,
+        **ctx_params,
+    ):
         """
-            buffer_bit_length=62,
-            scale_bits=40,
-            logN=15,
-            num_scales=None,
-            num_special_primes=2,
-            sigma=3.2,
-            uniform_tenary_secret=True,
-            cache_folder='cache/',
-            security_bits=128,
-            quantum='post_quantum',
-            distribution='uniform',
-            read_cache=True,
-            save_cache=True,
-            verbose=False
+        buffer_bit_length=62,
+        scale_bits=40,
+        logN=15,
+        num_scales=None,
+        num_special_primes=2,
+        sigma=3.2,
+        uniform_tenary_secret=True,
+        cache_folder='cache/',
+        security_bits=128,
+        quantum='post_quantum',
+        distribution='uniform',
+        read_cache=True,
+        save_cache=True,
+        verbose=False
         """
 
         self.bias_guard = bias_guard
@@ -54,7 +55,9 @@ class ClientCkksEngine:
 
         self.__num_threads = num_threads
         if self.__num_threads is None:
-            self.__num_threads = 2 ** int(np.floor(np.log2(os.cpu_count() // 2)))
+            self.__num_threads = 2 ** int(
+                np.floor(np.log2(os.cpu_count() // 2))
+            )
 
         self.__thread_load = thread_load
         if self.__thread_load is None:
@@ -64,21 +67,34 @@ class ClientCkksEngine:
         self.__tp = jthreadpool.create(self.num_threads)
 
         self.__ctx = CkksContext(**ctx_params)
-        self.__ntt = NttContext(self.ctx, devices=devices, verbose=verbose, num_threads=self.num_threads,
-                                thread_load=self.thread_load, tp=self.tp)
+        self.__ntt = NttContext(
+            self.ctx,
+            devices=devices,
+            verbose=verbose,
+            num_threads=self.num_threads,
+            thread_load=self.thread_load,
+            tp=self.tp,
+        )
 
         self.__num_levels = self.ntt.num_levels - 1
 
         self.__num_slots = self.ctx.N // 2
 
         rng_repeats = max(self.ntt.num_special_primes, 2)
-        self.__rng = Csprng(self.ntt.ctx.N, [len(di) for di in self.ntt.p.d], rng_repeats, thread_load=1,
-                            num_threads=self.num_threads, devices=self.ntt.devices, tp=self.tp)
+        self.__rng = Csprng(
+            self.ntt.ctx.N,
+            [len(di) for di in self.ntt.p.d],
+            rng_repeats,
+            thread_load=1,
+            num_threads=self.num_threads,
+            devices=self.ntt.devices,
+            tp=self.tp,
+        )
 
-        self.__int_scale = 2 ** self.ctx.scale_bits
+        self.__int_scale = 2**self.ctx.scale_bits
         self.__scale = np.float64(self.int_scale)
 
-        qstr = ','.join([str(qi) for qi in self.ctx.q])
+        qstr = ",".join([str(qi) for qi in self.ctx.q])
         hashstr = (self.ctx.generation_string + "_" + qstr).encode("utf-8")
         self.hash = sha256(bytes(hashstr)).hexdigest()
 
@@ -100,7 +116,7 @@ class ClientCkksEngine:
         #
         # self.initialize_key_switching_plan()
 
-        self.__galois_deltas = [2 ** i for i in range(self.ctx.logN - 1)]
+        self.__galois_deltas = [2**i for i in range(self.ctx.logN - 1)]
 
     # -------------------------------------------------------------------------------------------
     #   private properties.
@@ -176,15 +192,19 @@ class ClientCkksEngine:
 
                     scales = [(pow(m0, -1, mi) * self.ctx.R) % mi for mi in m]
 
-                    scales = torch.tensor(scales,
-                                          dtype=self.ctx.torch_dtype,
-                                          device=self.ntt.devices[device_id])
+                    scales = torch.tensor(
+                        scales,
+                        dtype=self.ctx.torch_dtype,
+                        device=self.ntt.devices[device_id],
+                    )
                     self.rescale_scales[level].append(scales)
 
     def leveled_devices(self):
         self.len_devices = []
         for level in range(self.num_levels):
-            self.len_devices.append(len([[a] for a in self.ntt.p.p[level] if len(a) > 0]))
+            self.len_devices.append(
+                len([[a] for a in self.ntt.p.p[level] if len(a) > 0])
+            )
 
         self.neighbor_devices = []
         for level in range(self.num_levels):
@@ -193,7 +213,9 @@ class ClientCkksEngine:
             available_devices_ids = range(len_devices_at)
             for src_device_id in available_devices_ids:
                 neighbor_devices_at = [
-                    device_id for device_id in available_devices_ids if device_id != src_device_id
+                    device_id
+                    for device_id in available_devices_ids
+                    if device_id != src_device_id
                 ]
                 self.neighbor_devices[level].append(neighbor_devices_at)
 
@@ -202,7 +224,8 @@ class ClientCkksEngine:
         for level in range(self.num_levels):
             num_parts = [len(parts) for parts in self.ntt.p.p[level]]
             parts_alloc = [
-                alloc[-num_parts[di] - 1:-1] for di, alloc in enumerate(self.ntt.p.part_allocations)
+                alloc[-num_parts[di] - 1 : -1]
+                for di, alloc in enumerate(self.ntt.p.part_allocations)
             ]
             self.parts_alloc.append(parts_alloc)
 
@@ -224,9 +247,12 @@ class ClientCkksEngine:
 
     def create_ksk_rescales(self):
         R = self.ctx.R
-        P = self.ctx.q[-self.ntt.num_special_primes:][::-1]
+        P = self.ctx.q[-self.ntt.num_special_primes :][::-1]
         m = self.ctx.q
-        PiR = [[(pow(Pj, -1, mi) * R) % mi for mi in m[:-P_ind - 1]] for P_ind, Pj in enumerate(P)]
+        PiR = [
+            [(pow(Pj, -1, mi) * R) % mi for mi in m[: -P_ind - 1]]
+            for P_ind, Pj in enumerate(P)
+        ]
 
         self.PiRs = []
 
@@ -237,18 +263,21 @@ class ClientCkksEngine:
             self.PiRs[level].append([])
 
             for device_id in range(self.ntt.num_devices):
-                dest = self.ntt.p.destination_arrays_with_special[level][device_id]
-                PiRi = [PiR[P_ind][i] for i in dest[:-P_ind - 1]]
-                PiRi = torch.tensor(PiRi,
-                                    device=self.ntt.devices[device_id],
-                                    dtype=self.ctx.torch_dtype)
+                dest = self.ntt.p.destination_arrays_with_special[level][
+                    device_id
+                ]
+                PiRi = [PiR[P_ind][i] for i in dest[: -P_ind - 1]]
+                PiRi = torch.tensor(
+                    PiRi,
+                    device=self.ntt.devices[device_id],
+                    dtype=self.ctx.torch_dtype,
+                )
                 self.PiRs[level][P_ind].append(PiRi)
 
         for level in range(1, self.num_levels):
             self.PiRs.append([])
 
             for P_ind in range(self.ntt.num_special_primes):
-
                 self.PiRs[level].append([])
 
                 for device_id in range(self.ntt.num_devices):
@@ -261,7 +290,7 @@ class ClientCkksEngine:
         self.ksk_buffers = []
 
     def make_mont_PR(self):
-        P = math.prod(self.ntt.ctx.q[-self.ntt.num_special_primes:])
+        P = math.prod(self.ntt.ctx.q[-self.ntt.num_special_primes :])
         R = self.ctx.R
         PR = P * R
         self.mont_PR = []
@@ -269,31 +298,43 @@ class ClientCkksEngine:
             dest = self.ntt.p.destination_arrays[0][device_id]
             m = [self.ctx.q[i] for i in dest]
             PRm = [PR % mi for mi in m]
-            PRm = torch.tensor(PRm,
-                               device=self.ntt.devices[device_id],
-                               dtype=self.ctx.torch_dtype)
+            PRm = torch.tensor(
+                PRm,
+                device=self.ntt.devices[device_id],
+                dtype=self.ctx.torch_dtype,
+            )
             self.mont_PR.append(PRm)
 
     def make_adjustments_and_corrections(self):
-
-        self.alpha = [(self.scale / np.float64(q)) ** 2 for q in self.ctx.q[:self.ctx.num_scales]]
+        self.alpha = [
+            (self.scale / np.float64(q)) ** 2
+            for q in self.ctx.q[: self.ctx.num_scales]
+        ]
         self.deviations = [1]
         for al in self.alpha:
             self.deviations.append(self.deviations[-1] ** 2 * al)
 
-        self.final_q_ind = [da[0][0] for da in self.ntt.p.destination_arrays[:-1]]
+        self.final_q_ind = [
+            da[0][0] for da in self.ntt.p.destination_arrays[:-1]
+        ]
         self.final_q = [self.ctx.q[ind] for ind in self.final_q_ind]
         self.final_alpha = [(self.scale / np.float64(q)) for q in self.final_q]
-        self.corrections = [1 / (d * fa) for d, fa in zip(self.deviations, self.final_alpha)]
+        self.corrections = [
+            1 / (d * fa) for d, fa in zip(self.deviations, self.final_alpha)
+        ]
 
         self.base_prime = self.ctx.q[self.ntt.p.base_prime_idx]
 
         self.final_scalar = []
         for qi, q in zip(self.final_q_ind, self.final_q):
-            scalar = (pow(q, -1, self.base_prime) * self.ctx.R) % self.base_prime
-            scalar = torch.tensor([scalar],
-                                  device=self.ntt.devices[0],
-                                  dtype=self.ctx.torch_dtype)
+            scalar = (
+                pow(q, -1, self.base_prime) * self.ctx.R
+            ) % self.base_prime
+            scalar = torch.tensor(
+                [scalar],
+                device=self.ntt.devices[0],
+                dtype=self.ctx.torch_dtype,
+            )
             self.final_scalar.append(scalar)
 
         r = self.ctx.R
@@ -301,12 +342,16 @@ class ClientCkksEngine:
         self.new_final_scalar = [
             torch.tensor(
                 [
-                    (pow(self.ctx.q[final_q_ind], -1, base_prime) * r) % base_prime
-                    for base_prime in self.ctx.q[final_q_ind + 1: -self.ctx.num_special_primes]
+                    (pow(self.ctx.q[final_q_ind], -1, base_prime) * r)
+                    % base_prime
+                    for base_prime in self.ctx.q[
+                        final_q_ind + 1 : -self.ctx.num_special_primes
+                    ]
                 ],
                 device=self.ntt.devices[0],
-                dtype=self.ctx.torch_dtype
-            ) for final_q_ind in range(self.ntt.num_ordinary_primes - 1)
+                dtype=self.ctx.torch_dtype,
+            )
+            for final_q_ind in range(self.ntt.num_ordinary_primes - 1)
         ]
 
     # -------------------------------------------------------------------------------------------
@@ -316,7 +361,10 @@ class ClientCkksEngine:
     def absmax_error(self, x, y):
         if isinstance(x[0], np.complex128) and isinstance(y[0], np.complex128):
             # if type(x[0]) == np.complex128 and type(y[0]) == np.complex128:
-            r = np.abs(x.real - y.real).max() + np.abs(x.imag - y.imag).max() * 1j
+            r = (
+                np.abs(x.real - y.real).max()
+                + np.abs(x.imag - y.imag).max() * 1j
+            )
         else:
             r = np.abs(np.array(x) - np.array(y)).max()
         return r
@@ -328,14 +376,16 @@ class ClientCkksEngine:
         return integral_bits
 
     @errors.log_error
-    def example(self, amin=None, amax=None, decimal_places: int = 10) -> np.array:
+    def example(
+        self, amin=None, amax=None, decimal_places: int = 10
+    ) -> np.array:
         if amin is None:
             amin = -(2 ** self.integral_bits_available())
 
         if amax is None:
             amax = 2 ** self.integral_bits_available()
 
-        base = 10 ** decimal_places
+        base = 10**decimal_places
         a = np.random.randint(amin * base, amax * base, self.ctx.N // 2) / base
         b = np.random.randint(amin * base, amax * base, self.ctx.N // 2) / base
 
@@ -351,10 +401,14 @@ class ClientCkksEngine:
         # m = m[:self.num_slots]
         try:
             m_len = len(m)
-            padding_result = np.pad(m, (0, self.num_slots - m_len), constant_values=(0, 0))
+            padding_result = np.pad(
+                m, (0, self.num_slots - m_len), constant_values=(0, 0)
+            )
         except TypeError as e:
             m_len = len([m])
-            padding_result = np.pad([m], (0, self.num_slots - m_len), constant_values=(0, 0))
+            padding_result = np.pad(
+                [m], (0, self.num_slots - m_len), constant_values=(0, 0)
+            )
         except Exception as e:
             raise Exception("[Error] encoding Padding Error.")
         return padding_result
@@ -362,15 +416,22 @@ class ClientCkksEngine:
     @errors.log_error
     def encode(self, m, level: int = 0, padding=True) -> list[torch.Tensor]:
         """
-            Encode a plain message m, using an encoding function.
-            Note that the encoded plain text is pre-permuted to yield cyclic rotation.
+        Encode a plain message m, using an encoding function.
+        Note that the encoded plain text is pre-permuted to yield cyclic rotation.
         """
         deviation = self.deviations[level]
         if padding:
             m = self.padding(m)
-        encoded = [encode(m, scale=self.scale, rng=self.rng,
-                          device=self.device0,
-                          deviation=deviation, norm=self.norm)]
+        encoded = [
+            encode(
+                m,
+                scale=self.scale,
+                rng=self.rng,
+                device=self.device0,
+                deviation=deviation,
+                norm=self.norm,
+            )
+        ]
 
         # pt_buffer = self.ksk_buffers[0][0][0]
         # pt_buffer.copy_(encoded[-1])
@@ -381,12 +442,17 @@ class ClientCkksEngine:
     @errors.log_error
     def decode(self, m, level=0, is_real: bool = False) -> np.ndarray:
         """
-            Base prime is located at -1 of the RNS channels in GPU0.
-            Assuming this is an orginary RNS deinclude_special.
+        Base prime is located at -1 of the RNS channels in GPU0.
+        Assuming this is an orginary RNS deinclude_special.
         """
         correction = self.corrections[level]
-        decoded = decode(m[0].squeeze(), scale=self.scale, correction=correction, norm=self.norm)
-        m = decoded[:self.ctx.N // 2].cpu().numpy()
+        decoded = decode(
+            m[0].squeeze(),
+            scale=self.scale,
+            correction=correction,
+            norm=self.norm,
+        )
+        m = decoded[: self.ctx.N // 2].cpu().numpy()
         if is_real:
             m = m.real
         return m
@@ -400,7 +466,9 @@ class ClientCkksEngine:
         uniform_ternary = self.rng.randint(amax=3, shift=-1, repeats=1)
 
         mult_type = -2 if include_special else -1
-        unsigned_ternary = self.ntt.tile_unsigned(uniform_ternary, lvl=0, mult_type=mult_type)
+        unsigned_ternary = self.ntt.tile_unsigned(
+            uniform_ternary, lvl=0, mult_type=mult_type
+        )
         self.ntt.enter_ntt(unsigned_ternary, 0, mult_type)
 
         return DataStruct(
@@ -412,15 +480,19 @@ class ClientCkksEngine:
             level=0,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     @errors.log_error
-    def create_public_key(self, sk: DataStruct, include_special: bool = False,
-                          crs: list[torch.Tensor] = None) -> DataStruct:
+    def create_public_key(
+        self,
+        sk: DataStruct,
+        include_special: bool = False,
+        crs: list[torch.Tensor] = None,
+    ) -> DataStruct:
         """
-            Generates a public key against the secret key sk.
-            pk = -a * sk + e = e - a * sk
+        Generates a public key against the secret key sk.
+        pk = -a * sk + e = e - a * sk
         """
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
@@ -441,8 +513,7 @@ class ClientCkksEngine:
         # Applying mont_mult in the order of 'a', sk will
         if crs is None:
             crs = self.rng.randint(
-                self.ntt.q_prepack[mult_type][level][0],
-                repeats=repeats
+                self.ntt.q_prepack[mult_type][level][0], repeats=repeats
             )
 
         sa = self.ntt.mont_mult(crs, sk.data, 0, mult_type)
@@ -457,7 +528,7 @@ class ClientCkksEngine:
             level=0,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     def create_evk(self, sk: DataStruct) -> DataStruct:
@@ -474,12 +545,14 @@ class ClientCkksEngine:
             level=sk.level,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         return self.create_key_switching_key(sk2, sk)
 
-    def create_rotation_key(self, sk: DataStruct, delta: int, a: list[torch.Tensor] = None) -> DataStruct:
+    def create_rotation_key(
+        self, sk: DataStruct, delta: int, a: list[torch.Tensor] = None
+    ) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
@@ -496,7 +569,7 @@ class ClientCkksEngine:
             level=0,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         rotk = self.create_key_switching_key(sk_rotated, sk, crs=a)
@@ -507,7 +580,9 @@ class ClientCkksEngine:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
-        galois_key_parts = [self.create_rotation_key(sk, delta) for delta in self.galois_deltas]
+        galois_key_parts = [
+            self.create_rotation_key(sk, delta) for delta in self.galois_deltas
+        ]
 
         galois_key = DataStruct(
             data=galois_key_parts,
@@ -518,7 +593,7 @@ class ClientCkksEngine:
             level=0,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         return galois_key
 
@@ -541,19 +616,26 @@ class ClientCkksEngine:
             level=0,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         rotk = self.create_key_switching_key(sk_rotated, sk)
         rotk = rotk._replace(origin=types.origins["conjk"])
         return rotk
 
-    def create_key_switching_key(self, sk_from: DataStruct, sk_to: DataStruct, crs=None) -> DataStruct:
+    def create_key_switching_key(
+        self, sk_from: DataStruct, sk_to: DataStruct, crs=None
+    ) -> DataStruct:
         """
-            Creates a key to switch the key for sk_src to sk_dst.
+        Creates a key to switch the key for sk_src to sk_dst.
         """
 
-        if sk_from.origin != types.origins["sk"] or sk_from.origin != types.origins["sk"]:
-            raise errors.NotMatchType(origin="not a secret key", to=types.origins["sk"])
+        if (
+            sk_from.origin != types.origins["sk"]
+            or sk_from.origin != types.origins["sk"]
+        ):
+            raise errors.NotMatchType(
+                origin="not a secret key", to=types.origins["sk"]
+            )
         if (not sk_from.ntt_state) or (not sk_from.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk_from.origin)
         if (not sk_to.ntt_state) or (not sk_to.montgomery_state):
@@ -562,7 +644,10 @@ class ClientCkksEngine:
         level = 0
 
         stops = self.ntt.stops[-1]
-        Psk_src = [sk_from.data[di][:stops[di]].clone() for di in range(self.ntt.num_devices)]
+        Psk_src = [
+            sk_from.data[di][: stops[di]].clone()
+            for di in range(self.ntt.num_devices)
+        ]
 
         self.ntt.mont_enter_scalar(Psk_src, self.mont_PR, level)
 
@@ -570,7 +655,9 @@ class ClientCkksEngine:
 
         for device_id in range(self.ntt.num_devices):
             for part_id, part in enumerate(self.ntt.p.p[level][device_id]):
-                global_part_id = self.ntt.p.part_allocations[device_id][part_id]
+                global_part_id = self.ntt.p.part_allocations[device_id][
+                    part_id
+                ]
 
                 a = crs[global_part_id] if crs else None
                 pk = self.create_public_key(sk_to, include_special=True, crs=a)
@@ -581,11 +668,11 @@ class ClientCkksEngine:
                 shard = Psk_src[device_id][astart:astop]
                 pk_data = pk.data[0][device_id][astart:astop]
 
-                _2q = self.ntt.parts_pack[device_id][key]['_2q']
+                _2q = self.ntt.parts_pack[device_id][key]["_2q"]
                 update_part = self.ntt.mont_add([pk_data], [shard], _2q=_2q)[0]
                 pk_data.copy_(update_part, non_blocking=True)
 
-                pk_name = f'key switch key part index {global_part_id}'
+                pk_name = f"key switch key part index {global_part_id}"
                 pk = pk._replace(origin=pk_name)
 
                 ksk[global_part_id] = pk
@@ -599,7 +686,7 @@ class ClientCkksEngine:
             level=level,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
     # -------------------------------------------------------------------------------------------
@@ -607,17 +694,19 @@ class ClientCkksEngine:
     # -------------------------------------------------------------------------------------------
 
     @errors.log_error
-    def encrypt(self, pt: list[torch.Tensor], pk: DataStruct, level: int = 0) -> DataStruct:
+    def encrypt(
+        self, pt: list[torch.Tensor], pk: DataStruct, level: int = 0
+    ) -> DataStruct:
         """
-            We again, multiply pt by the scale.
-            Since pt is already multiplied by the scale,
-            the multiplied pt no longer can be stored
-            in a single RNS channel.
-            That means we are forced to do the multiplication
-            in full RNS domain.
-            Note that we allow encryption at
-            levels other than 0, and that will take care of multiplying
-            the deviation factors.
+        We again, multiply pt by the scale.
+        Since pt is already multiplied by the scale,
+        the multiplied pt no longer can be stored
+        in a single RNS channel.
+        That means we are forced to do the multiplication
+        in full RNS domain.
+        Note that we allow encryption at
+        levels other than 0, and that will take care of multiplying
+        the deviation factors.
         """
         if pk.origin != types.origins["pk"]:
             raise errors.NotMatchType(origin=pk.origin, to=types.origins["pk"])
@@ -638,8 +727,12 @@ class ClientCkksEngine:
         pte0 = self.ntt.mont_add(pt_tiled, e0_tiled, level, mult_type)
 
         start = self.ntt.starts[level]
-        pk0 = [pk.data[0][di][start[di]:] for di in range(self.ntt.num_devices)]
-        pk1 = [pk.data[1][di][start[di]:] for di in range(self.ntt.num_devices)]
+        pk0 = [
+            pk.data[0][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
+        pk1 = [
+            pk.data[1][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
 
         v = self.rng.randint(amax=2, shift=0, repeats=1)
 
@@ -667,14 +760,18 @@ class ClientCkksEngine:
             level=level,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         return ct
 
-    def decrypt_triplet(self, ct_mult: DataStruct, sk: DataStruct, final_round=True) -> list[torch.Tensor]:
+    def decrypt_triplet(
+        self, ct_mult: DataStruct, sk: DataStruct, final_round=True
+    ) -> list[torch.Tensor]:
         if ct_mult.origin != types.origins["ctt"]:
-            raise errors.NotMatchType(origin=ct_mult.origin, to=types.origins["ctt"])
+            raise errors.NotMatchType(
+                origin=ct_mult.origin, to=types.origins["ctt"]
+            )
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
@@ -690,7 +787,7 @@ class ClientCkksEngine:
 
         self.ntt.intt_exit_reduce(d0, level)
 
-        sk_data = [sk.data[0][self.ntt.starts[level][0]:]]
+        sk_data = [sk.data[0][self.ntt.starts[level][0] :]]
 
         d1_s = self.ntt.mont_mult(d1, sk_data, level)
 
@@ -704,7 +801,9 @@ class ClientCkksEngine:
         pt = self.ntt.mont_add(pt, d2_s2, level)
         self.ntt.reduce_2q(pt, level)
 
-        base_at = -self.ctx.num_special_primes - 1 if ct_mult.include_special else -1
+        base_at = (
+            -self.ctx.num_special_primes - 1 if ct_mult.include_special else -1
+        )
 
         base = pt[0][base_at][None, :]
         scaler = pt[0][0][None, :]
@@ -719,13 +818,17 @@ class ClientCkksEngine:
         if final_round:
             # The scaler and the base channels are guaranteed to be in the
             # device 0.
-            rounding_prime = self.ntt.qlists[0][-self.ctx.num_special_primes - 2]
+            rounding_prime = self.ntt.qlists[0][
+                -self.ctx.num_special_primes - 2
+            ]
             rounder = (scaler[0] > (rounding_prime // 2)) * 1
             scaled[0] += rounder
 
         return scaled
 
-    def decrypt_double(self, ct: DataStruct, sk: DataStruct, final_round: bool = True) -> list[torch.Tensor]:
+    def decrypt_double(
+        self, ct: DataStruct, sk: DataStruct, final_round: bool = True
+    ) -> list[torch.Tensor]:
         """
 
         @param ct:
@@ -745,7 +848,7 @@ class ClientCkksEngine:
         level = ct.level
 
         ct0 = ct.data[0][0]
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
         a = ct.data[1][0].clone()
 
         self.ntt.enter_ntt([a], level)
@@ -756,7 +859,9 @@ class ClientCkksEngine:
         self.ntt.reduce_2q(pt, level)
 
         if level == self.num_levels - 1:
-            base_at = -self.ctx.num_special_primes - 1 if ct.include_special else -1
+            base_at = (
+                -self.ctx.num_special_primes - 1 if ct.include_special else -1
+            )
 
             base = pt[0][base_at][None, :]
             scaler = pt[0][0][None, :]
@@ -783,10 +888,14 @@ class ClientCkksEngine:
             q1 = self.ctx.q[self.ntt.num_ordinary_primes - 2]
             q0 = self.ctx.q[self.ntt.num_ordinary_primes - 1]
 
-            q1_inv_mod_q0_mont = self.new_final_scalar[self.ntt.num_ordinary_primes - 2]
+            q1_inv_mod_q0_mont = self.new_final_scalar[
+                self.ntt.num_ordinary_primes - 2
+            ]
 
             quotient = scaled[1:] - scaled[0]
-            self.ntt.mont_enter_scalar([quotient], [q1_inv_mod_q0_mont], self.num_levels)
+            self.ntt.mont_enter_scalar(
+                [quotient], [q1_inv_mod_q0_mont], self.num_levels
+            )
             self.ntt.reduce_2q([quotient], self.num_levels)
 
             M_half_div_q1 = (q0 - 1) // 2
@@ -795,35 +904,47 @@ class ClientCkksEngine:
                 quotient[0] > M_half_div_q1,
                 torch.logical_and(
                     quotient[0] >= M_half_div_q1, scaled[0] > M_half_mod_q1
-                )
+                ),
             )
             is_negative = is_negative * 1
 
             signed_large_part = quotient[0] - is_negative * q0
-            scaled = [scaled[0].type(torch.float64) + float(q1) * signed_large_part.type(torch.float64)]
+            scaled = [
+                scaled[0].type(torch.float64)
+                + float(q1) * signed_large_part.type(torch.float64)
+            ]
 
         if final_round:
-            rounding_prime = self.ntt.qlists[0][-self.ctx.num_special_primes - 2]
+            rounding_prime = self.ntt.qlists[0][
+                -self.ctx.num_special_primes - 2
+            ]
             rounder = (scaler[0] > (rounding_prime // 2)) * 1
             scaled[0] += rounder
 
         return scaled
 
-    def decrypt(self, ct: DataStruct, sk: DataStruct, final_round=True) -> list[torch.Tensor]:
+    def decrypt(
+        self, ct: DataStruct, sk: DataStruct, final_round=True
+    ) -> list[torch.Tensor]:
         """
-            Decrypt the cipher text ct using the secret key sk.
-            Note that the final rescaling must precede the actual decryption process.
+        Decrypt the cipher text ct using the secret key sk.
+        Note that the final rescaling must precede the actual decryption process.
         """
 
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
         if ct.origin == types.origins["ctt"]:
-            pt = self.decrypt_triplet(ct_mult=ct, sk=sk, final_round=final_round)
+            pt = self.decrypt_triplet(
+                ct_mult=ct, sk=sk, final_round=final_round
+            )
         elif ct.origin == types.origins["ct"]:
             pt = self.decrypt_double(ct=ct, sk=sk, final_round=final_round)
         else:
-            raise errors.NotMatchType(origin=ct.origin, to=f"{types.origins['ct']} or {types.origins['ctt']}")
+            raise errors.NotMatchType(
+                origin=ct.origin,
+                to=f"{types.origins['ct']} or {types.origins['ctt']}",
+            )
 
         return pt
 
@@ -838,7 +959,9 @@ class ClientCkksEngine:
     # -------------------------------------------------------------------------------------------
     # Fused enc/dec.
     # -------------------------------------------------------------------------------------------
-    def encodecrypt(self, m, pk: DataStruct, level: int = 0, padding=True) -> DataStruct:
+    def encodecrypt(
+        self, m, pk: DataStruct, level: int = 0, padding=True
+    ) -> DataStruct:
         if pk.origin != types.origins["pk"]:
             raise errors.NotMatchType(origin=pk.origin, to=types.origins["pk"])
 
@@ -846,10 +969,15 @@ class ClientCkksEngine:
             m = self.padding(m=m)
 
         deviation = self.deviations[level]
-        pt = encode(m, scale=self.scale,
-                    device=self.device0, norm=self.norm,
-                    deviation=deviation, rng=self.rng,
-                    return_without_scaling=self.bias_guard)
+        pt = encode(
+            m,
+            scale=self.scale,
+            device=self.device0,
+            norm=self.norm,
+            deviation=deviation,
+            rng=self.rng,
+            return_without_scaling=self.bias_guard,
+        )
 
         if self.bias_guard:
             dc_integral = pt[0].item() // 1
@@ -857,11 +985,15 @@ class ClientCkksEngine:
 
             dc_scale = int(dc_integral) * int(self.scale)
             dc_rns = []
-            for device_id, dest in enumerate(self.ntt.p.destination_arrays[level]):
+            for device_id, dest in enumerate(
+                self.ntt.p.destination_arrays[level]
+            ):
                 dci = [dc_scale % self.ctx.q[i] for i in dest]
-                dci = torch.tensor(dci,
-                                   dtype=self.ctx.torch_dtype,
-                                   device=self.ntt.devices[device_id])
+                dci = torch.tensor(
+                    dci,
+                    dtype=self.ctx.torch_dtype,
+                    device=self.ntt.devices[device_id],
+                )
                 dc_rns.append(dci)
 
             pt *= np.float64(self.scale)
@@ -895,8 +1027,12 @@ class ClientCkksEngine:
         pte0 = self.ntt.mont_add(pt_tiled, e0_tiled, level, mult_type)
 
         start = self.ntt.starts[level]
-        pk0 = [pk.data[0][di][start[di]:] for di in range(self.ntt.num_devices)]
-        pk1 = [pk.data[1][di][start[di]:] for di in range(self.ntt.num_devices)]
+        pk0 = [
+            pk.data[0][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
+        pk1 = [
+            pk.data[1][di][start[di] :] for di in range(self.ntt.num_devices)
+        ]
 
         v = self.rng.randint(amax=2, shift=0, repeats=1)
 
@@ -924,17 +1060,23 @@ class ClientCkksEngine:
             level=level,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
         return ct
 
-    def __decrode(self, ct: DataStruct, sk: DataStruct, is_real: bool = False, final_round: bool = True) -> np.ndarray:
+    def __decrode(
+        self,
+        ct: DataStruct,
+        sk: DataStruct,
+        is_real: bool = False,
+        final_round: bool = True,
+    ) -> np.ndarray:
         if (not sk.ntt_state) or (not sk.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk.origin)
 
         level = ct.level
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
 
         if ct.ntt_state or ct.montgomery_state:
             raise errors.NotMatchDataStructState(origin=ct.origin)
@@ -950,7 +1092,9 @@ class ClientCkksEngine:
         pt = self.ntt.mont_add([ct0], sa, level)
         self.ntt.reduce_2q(pt, level)
 
-        base_at = -self.ctx.num_special_primes - 1 if ct.include_special else -1
+        base_at = (
+            -self.ctx.num_special_primes - 1 if ct.include_special else -1
+        )
         base = pt[0][base_at][None, :]
         scaler = pt[0][0][None, :]
 
@@ -998,7 +1142,9 @@ class ClientCkksEngine:
         if final_round:
             # The scaler and the base channels are guaranteed to be in the
             # device 0.
-            rounding_prime = self.ntt.qlists[0][-self.ctx.num_special_primes - 2]
+            rounding_prime = self.ntt.qlists[0][
+                -self.ctx.num_special_primes - 2
+            ]
             rounder = (scaler[0] > (rounding_prime // 2)) * 1
             scaled[0] += rounder
 
@@ -1009,9 +1155,9 @@ class ClientCkksEngine:
             scale=self.scale,
             correction=correction,
             norm=self.norm,
-            return_without_scaling=self.bias_guard
+            return_without_scaling=self.bias_guard,
         )
-        decoded = decoded[:self.ctx.N // 2].cpu().numpy()
+        decoded = decoded[: self.ctx.N // 2].cpu().numpy()
         ##
 
         decoded = decoded / self.scale * correction
@@ -1023,20 +1169,26 @@ class ClientCkksEngine:
             decoded = decoded.real
         return decoded
 
-    def decryptcode(self, ct: DataStruct, sk: DataStruct, is_real=False, final_round=True) -> np.ndarray:
+    def decryptcode(
+        self, ct: DataStruct, sk: DataStruct, is_real=False, final_round=True
+    ) -> np.ndarray:
         if (not sk.ntt_state) or (not sk.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk.origin)
 
         if ct.origin == types.origins["ct"]:
             if self.bias_guard:
-                m = self.__decrode(ct=ct, sk=sk, is_real=is_real, final_round=final_round)
+                m = self.__decrode(
+                    ct=ct, sk=sk, is_real=is_real, final_round=final_round
+                )
             elif self.bias_guard is False:
                 pt = self.decrypt(ct=ct, sk=sk, final_round=final_round)
                 m = self.decode(m=pt, level=ct.level, is_real=is_real)
             else:
                 raise "Error"
         elif ct.origin == types.origins["ctt"]:
-            pt = self.decrypt_triplet(ct_mult=ct, sk=sk, final_round=final_round)
+            pt = self.decrypt_triplet(
+                ct_mult=ct, sk=sk, final_round=final_round
+            )
             m = self.decode(m=pt, level=ct.level, is_real=is_real)
         else:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
@@ -1049,8 +1201,12 @@ class ClientCkksEngine:
     def encorypt(self, m, pk: DataStruct, level: int = 0, padding=True):
         return self.encodecrypt(m, pk=pk, level=level, padding=padding)
 
-    def decrode(self, ct: DataStruct, sk: DataStruct, is_real=False, final_round=True):
-        return self.decryptcode(ct=ct, sk=sk, is_real=is_real, final_round=final_round)
+    def decrode(
+        self, ct: DataStruct, sk: DataStruct, is_real=False, final_round=True
+    ):
+        return self.decryptcode(
+            ct=ct, sk=sk, is_real=is_real, final_round=final_round
+        )
 
     # -------------------------------------------------------------------------------------------
     # Clone.
@@ -1083,7 +1239,7 @@ class ClientCkksEngine:
                 level=text.level,
                 level_available=self.num_levels,
                 hash=text.hash,
-                version=text.version
+                version=text.version,
             )
 
         else:
@@ -1096,7 +1252,7 @@ class ClientCkksEngine:
                 level=text.level,
                 level_available=self.num_levels,
                 hash=text.hash,
-                version=text.version
+                version=text.version,
             )
 
             for d in text.data:
@@ -1127,12 +1283,16 @@ class ClientCkksEngine:
         cpu_size = (num_rows, num_cols)
 
         # Make a cpu tensor to aggregate the data in GPUs.
-        cpu_tensor = torch.empty(cpu_size, dtype=self.ctx.torch_dtype, device='cpu')
+        cpu_tensor = torch.empty(
+            cpu_size, dtype=self.ctx.torch_dtype, device="cpu"
+        )
 
         for ten, dest_i in zip(gpu_data, dest):
             # Check if the tensor is in the gpu.
-            if ten.device.type != 'cuda':
-                raise Exception("To download data to the CPU, it must already be in a GPU!!!")
+            if ten.device.type != "cuda":
+                raise Exception(
+                    "To download data to the CPU, it must already be in a GPU!!!"
+                )
 
             # Copy in the data.
             cpu_tensor[dest_i] = ten.cpu()
@@ -1146,8 +1306,10 @@ class ClientCkksEngine:
         cpu_tensor = cpu_data[0]
 
         # Check if the tensor is in the cpu.
-        if cpu_tensor.device.type != 'cpu':
-            raise Exception("To upload data to GPUs, it must already be in the CPU!!!")
+        if cpu_tensor.device.type != "cpu":
+            raise Exception(
+                "To upload data to GPUs, it must already be in the CPU!!!"
+            )
 
         # Prepare destination arrays.
         if include_special:
@@ -1175,8 +1337,8 @@ class ClientCkksEngine:
 
     def move_tensors(self, data, level, include_special, direction):
         func = {
-            'gpu2cpu': self.download_to_cpu,
-            'cpu2gpu': self.upload_to_gpu
+            "gpu2cpu": self.download_to_cpu,
+            "cpu2gpu": self.upload_to_gpu,
         }[direction]
 
         # Some data has 1 depth.
@@ -1190,14 +1352,15 @@ class ClientCkksEngine:
                 new_data.append(moved)
         return new_data
 
-    def move_to(self, text, direction='gpu2cpu'):
+    def move_to(self, text, direction="gpu2cpu"):
         if not isinstance(text.data[0], DataStruct):
             level = text.level
             include_special = text.include_special
 
             # data are tensors.
-            data = self.move_tensors(text.data, level,
-                                     include_special, direction)
+            data = self.move_tensors(
+                text.data, level, include_special, direction
+            )
 
             wrapper = DataStruct(
                 data=data,
@@ -1208,7 +1371,7 @@ class ClientCkksEngine:
                 level=text.level,
                 level_available=self.num_levels,
                 hash=text.hash,
-                version=text.version
+                version=text.version,
             )
 
         else:
@@ -1221,7 +1384,7 @@ class ClientCkksEngine:
                 level=text.level,
                 level_available=self.num_levels,
                 hash=text.hash,
-                version=text.version
+                version=text.version,
             )
 
             for d in text.data:
@@ -1233,10 +1396,10 @@ class ClientCkksEngine:
         # Shortcuts
 
     def cpu(self, ct):
-        return self.move_to(ct, 'gpu2cpu')
+        return self.move_to(ct, "gpu2cpu")
 
     def cuda(self, ct):
-        return self.move_to(ct, 'cpu2gpu')
+        return self.move_to(ct, "cpu2gpu")
 
         # -------------------------------------------------------------------------------------------
         # check device.
@@ -1290,16 +1453,19 @@ class ClientCkksEngine:
                 for device_id, d in enumerate(part):
                     device = self.ntt.devices[device_id]
 
-                    if (device_id == len(part) - 1) and \
-                            (part_i == len(data) - 1):
+                    if (device_id == len(part) - 1) and (
+                        part_i == len(data) - 1
+                    ):
                         final = True
                     else:
                         final = False
 
                     lead_text = self.tree_lead_text(-level, final=final)
 
-                    print(f"{lead_text} tensor at device {device} with "
-                          f"shape {d.shape}.")
+                    print(
+                        f"{lead_text} tensor at device {device} with "
+                        f"shape {d.shape}."
+                    )
         else:
             for device_id, d in enumerate(data):
                 device = self.ntt.devices[device_id]
@@ -1311,8 +1477,10 @@ class ClientCkksEngine:
 
                 lead_text = self.tree_lead_text(-level, final=final)
 
-                print(f"{lead_text} tensor at device {device} with "
-                      f"shape {d.shape}.")
+                print(
+                    f"{lead_text} tensor at device {device} with "
+                    f"shape {d.shape}."
+                )
 
     def print_data_structure(self, text, level=0):
         lead_text = self.tree_lead_text(level)
@@ -1328,8 +1496,8 @@ class ClientCkksEngine:
     # Save and load.
     # -------------------------------------------------------------------------------------------
 
-    def auto_generate_filename(self, fmt_str='%Y%m%d%H%M%s%f'):
-        return datetime.datetime.now().strftime(fmt_str) + '.pkl'
+    def auto_generate_filename(self, fmt_str="%Y%m%d%H%M%s%f"):
+        return datetime.datetime.now().strftime(fmt_str) + ".pkl"
 
     def save(self, text, filename=None):
         if filename is None:
@@ -1339,17 +1507,17 @@ class ClientCkksEngine:
 
         # Check if the text is in the CPU.
         # If not, move to CPU.
-        if self.device(text) != 'cpu':
+        if self.device(text) != "cpu":
             cpu_text = self.cpu(text)
         else:
             cpu_text = text
 
-        with savepath.open('wb') as f:
+        with savepath.open("wb") as f:
             pickle.dump(cpu_text, f)
 
     def load(self, filename):
         savepath = Path(filename)
-        with savepath.open('rb') as f:
+        with savepath.open("rb") as f:
             cpu_text = pickle.load(f)
 
         text = cpu_text
@@ -1368,10 +1536,12 @@ class ClientCkksEngine:
         crs = self.clone(pk).data[1]
         return crs
 
-    def multiparty_create_public_key(self,
-                                     sk: DataStruct,
-                                     crs: list[torch.tensor],
-                                     include_special: bool = False) -> DataStruct:
+    def multiparty_create_public_key(
+        self,
+        sk: DataStruct,
+        crs: list[torch.tensor],
+        include_special: bool = False,
+    ) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         if include_special and not sk.include_special:
@@ -1401,12 +1571,24 @@ class ClientCkksEngine:
             level=level,
             hash=self.hash,
             level_available=self.num_levels,
-            version=self.version
+            version=self.version,
         )
         return pk
 
-    def multiparty_create_collective_public_key(self, pks: list[DataStruct]) -> DataStruct:
-        data, include_special, ntt_state, montgomery_state, origin, level, hash_, level_available, version = pks[0]
+    def multiparty_create_collective_public_key(
+        self, pks: list[DataStruct]
+    ) -> DataStruct:
+        (
+            data,
+            include_special,
+            ntt_state,
+            montgomery_state,
+            origin,
+            level,
+            hash_,
+            level_available,
+            version,
+        ) = pks[0]
         mult_type = -2 if include_special else -1
         b = [b.clone() for b in data[0]]  # num of gpus
         a = [a.clone() for a in data[1]]
@@ -1423,7 +1605,7 @@ class ClientCkksEngine:
             level=level,
             level_available=level_available,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         return cpk
 
@@ -1443,7 +1625,7 @@ class ClientCkksEngine:
 
         self.ntt.enter_ntt([a], level)
 
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
 
         sa = self.ntt.mont_mult([a], [sk_data], level)
         self.ntt.intt_exit(sa, level)
@@ -1452,7 +1634,9 @@ class ClientCkksEngine:
 
         return pt
 
-    def multiparty_decrypt_partial(self, ct: DataStruct, sk: DataStruct) -> DataStruct:
+    def multiparty_decrypt_partial(
+        self, ct: DataStruct, sk: DataStruct
+    ) -> DataStruct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if sk.origin != types.origins["sk"]:
@@ -1462,20 +1646,32 @@ class ClientCkksEngine:
         if not sk.ntt_state or not sk.montgomery_state:
             raise errors.NotMatchDataStructState(origin=sk.origin)
 
-        data, include_special, ntt_state, montgomery_state, origin, level, hash_, _, version = ct
+        (
+            data,
+            include_special,
+            ntt_state,
+            montgomery_state,
+            origin,
+            level,
+            hash_,
+            _,
+            version,
+        ) = ct
 
         a = ct.data[1][0].clone()
 
         self.ntt.enter_ntt([a], level)
 
-        sk_data = sk.data[0][self.ntt.starts[level][0]:]
+        sk_data = sk.data[0][self.ntt.starts[level][0] :]
 
         sa = self.ntt.mont_mult([a], [sk_data], level)
         self.ntt.intt_exit(sa, level)
 
         return sa
 
-    def multiparty_decrypt_fusion(self, pcts: list, level=0, include_special=False):
+    def multiparty_decrypt_fusion(
+        self, pcts: list, level=0, include_special=False
+    ):
         pt = [x.clone() for x in pcts[0]]
         for pct in pcts[1:]:
             pt = self.ntt.mont_add(pt, pct, level)
@@ -1501,9 +1697,16 @@ class ClientCkksEngine:
     #### Multiparty. ROTATION
     #### -------------------------------------------------------------------------------------------
 
-    def multiparty_create_key_switching_key(self, sk_src: DataStruct, sk_dst: DataStruct, crs=None) -> DataStruct:
-        if sk_src.origin != types.origins["sk"] or sk_src.origin != types.origins["sk"]:
-            raise errors.NotMatchType(origin="not a secret key", to=types.origins["sk"])
+    def multiparty_create_key_switching_key(
+        self, sk_src: DataStruct, sk_dst: DataStruct, crs=None
+    ) -> DataStruct:
+        if (
+            sk_src.origin != types.origins["sk"]
+            or sk_src.origin != types.origins["sk"]
+        ):
+            raise errors.NotMatchType(
+                origin="not a secret key", to=types.origins["sk"]
+            )
         if (not sk_src.ntt_state) or (not sk_src.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk_src.origin)
         if (not sk_dst.ntt_state) or (not sk_dst.montgomery_state):
@@ -1512,30 +1715,37 @@ class ClientCkksEngine:
         level = 0
 
         stops = self.ntt.stops[-1]
-        Psk_src = [sk_src.data[di][:stops[di]].clone() for di in range(self.ntt.num_devices)]
+        Psk_src = [
+            sk_src.data[di][: stops[di]].clone()
+            for di in range(self.ntt.num_devices)
+        ]
 
         self.ntt.mont_enter_scalar(Psk_src, self.mont_PR, level)
 
         ksk = [[] for _ in range(self.ntt.p.num_partitions + 1)]
         for device_id in range(self.ntt.num_devices):
             for part_id, part in enumerate(self.ntt.p.p[level][device_id]):
-                global_part_id = self.ntt.p.part_allocations[device_id][part_id]
+                global_part_id = self.ntt.p.part_allocations[device_id][
+                    part_id
+                ]
 
                 a = crs[global_part_id] if crs else None
-                pk = self.multiparty_create_public_key(sk_dst, include_special=True, crs=a)
+                pk = self.multiparty_create_public_key(
+                    sk_dst, include_special=True, crs=a
+                )
                 key = tuple(part)
                 astart = part[0]
                 astop = part[-1] + 1
                 shard = Psk_src[device_id][astart:astop]
                 pk_data = pk.data[0][device_id][astart:astop]
 
-                _2q = self.ntt.parts_pack[device_id][key]['_2q']
+                _2q = self.ntt.parts_pack[device_id][key]["_2q"]
                 # update_part = ntt_cuda.mont_add([pk_data], [shard], _2q)[0]
                 update_part = self.ntt.mont_add([pk_data], [shard], _2q=_2q)[0]
                 pk_data.copy_(update_part, non_blocking=True)
 
                 # Name the pk.
-                pk_name = f'key switch key part index {global_part_id}'
+                pk_name = f"key switch key part index {global_part_id}"
                 pk = pk._replace(origin=pk_name)
 
                 ksk[global_part_id] = pk
@@ -1549,10 +1759,12 @@ class ClientCkksEngine:
             level=level,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
 
-    def multiparty_create_rotation_key(self, sk: DataStruct, delta: int, crs=None) -> DataStruct:
+    def multiparty_create_rotation_key(
+        self, sk: DataStruct, delta: int, crs=None
+    ) -> DataStruct:
         sk_new_data = [s.clone() for s in sk.data]
         self.ntt.intt(sk_new_data)
         sk_new_data = [rotate(s, delta) for s in sk_new_data]
@@ -1566,23 +1778,36 @@ class ClientCkksEngine:
             level=0,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
-        rotk = self.multiparty_create_key_switching_key(sk_rotated, sk, crs=crs)
+        rotk = self.multiparty_create_key_switching_key(
+            sk_rotated, sk, crs=crs
+        )
         rotk = rotk._replace(origin=types.origins["rotk"] + f"{delta}")
         return rotk
 
-    def multiparty_generate_rotation_key(self, rotks: list[DataStruct]) -> DataStruct:
+    def multiparty_generate_rotation_key(
+        self, rotks: list[DataStruct]
+    ) -> DataStruct:
         crotk = self.clone(rotks[0])
         for rotk in rotks[1:]:
             for ksk_idx in range(len(rotk.data)):
-                update_parts = self.ntt.mont_add(crotk.data[ksk_idx].data[0], rotk.data[ksk_idx].data[0])
-                crotk.data[ksk_idx].data[0][0].copy_(update_parts[0], non_blocking=True)
+                update_parts = self.ntt.mont_add(
+                    crotk.data[ksk_idx].data[0], rotk.data[ksk_idx].data[0]
+                )
+                crotk.data[ksk_idx].data[0][0].copy_(
+                    update_parts[0], non_blocking=True
+                )
         return crotk
 
     def generate_rotation_crs(self, rotk: DataStruct):
-        if types.origins["rotk"] not in rotk.origin and types.origins["ksk"] != rotk.origin:
-            raise errors.NotMatchType(origin=rotk.origin, to=types.origins["ksk"])
+        if (
+            types.origins["rotk"] not in rotk.origin
+            and types.origins["ksk"] != rotk.origin
+        ):
+            raise errors.NotMatchType(
+                origin=rotk.origin, to=types.origins["ksk"]
+            )
         crss = []
         for ksk in rotk.data:
             crss.append(ksk.data[1])
@@ -1594,18 +1819,24 @@ class ClientCkksEngine:
 
     def generate_galois_crs(self, galk: DataStruct):
         if galk.origin != types.origins["galk"]:
-            raise errors.NotMatchType(origin=galk.origin, to=types.origins["galk"])
+            raise errors.NotMatchType(
+                origin=galk.origin, to=types.origins["galk"]
+            )
         crs_s = []
         for rotk in galk.data:
             crss = [ksk.data[1] for ksk in rotk.data]
             crs_s.append(crss)
         return crs_s
 
-    def multiparty_create_galois_key(self, sk: DataStruct, a: list) -> DataStruct:
+    def multiparty_create_galois_key(
+        self, sk: DataStruct, a: list
+    ) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         galois_key_parts = [
-            self.multiparty_create_rotation_key(sk, self.galois_deltas[idx], crs=a[idx])
+            self.multiparty_create_rotation_key(
+                sk, self.galois_deltas[idx], crs=a[idx]
+            )
             for idx in range(len(self.galois_deltas))
         ]
 
@@ -1618,20 +1849,24 @@ class ClientCkksEngine:
             level=0,
             level_available=self.num_levels,
             hash=self.hash,
-            version=self.version
+            version=self.version,
         )
         return galois_key
 
-    def multiparty_generate_galois_key(self, galks: list[DataStruct]) -> DataStruct:
+    def multiparty_generate_galois_key(
+        self, galks: list[DataStruct]
+    ) -> DataStruct:
         cgalk = self.clone(galks[0])
         for galk in galks[1:]:  # galk
             for rotk_idx in range(len(galk.data)):  # rotk
                 for ksk_idx in range(len(galk.data[rotk_idx].data)):  # ksk
                     update_parts = self.ntt.mont_add(
                         cgalk.data[rotk_idx].data[ksk_idx].data[0],
-                        galk.data[rotk_idx].data[ksk_idx].data[0]
+                        galk.data[rotk_idx].data[ksk_idx].data[0],
                     )
-                    cgalk.data[rotk_idx].data[ksk_idx].data[0][0].copy_(update_parts[0], non_blocking=True)
+                    cgalk.data[rotk_idx].data[ksk_idx].data[0][0].copy_(
+                        update_parts[0], non_blocking=True
+                    )
         return cgalk
 
     #### -------------------------------------------------------------------------------------------
@@ -1642,33 +1877,58 @@ class ClientCkksEngine:
         evk_sum = self.clone(evks_share[0])
         for evk_share in evks_share[1:]:
             for ksk_idx in range(len(evk_sum.data)):
-                update_parts = self.ntt.mont_add(evk_sum.data[ksk_idx].data[0], evk_share.data[ksk_idx].data[0])
+                update_parts = self.ntt.mont_add(
+                    evk_sum.data[ksk_idx].data[0],
+                    evk_share.data[ksk_idx].data[0],
+                )
                 for dev_id in range(len(update_parts)):
-                    evk_sum.data[ksk_idx].data[0][dev_id].copy_(update_parts[dev_id], non_blocking=True)
+                    evk_sum.data[ksk_idx].data[0][dev_id].copy_(
+                        update_parts[dev_id], non_blocking=True
+                    )
 
         return evk_sum
 
-    def multiparty_mult_evk_share_sum(self, evk_sum: DataStruct, sk: DataStruct):
+    def multiparty_mult_evk_share_sum(
+        self, evk_sum: DataStruct, sk: DataStruct
+    ):
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         evk_sum_mult = self.clone(evk_sum)
 
         for ksk_idx in range(len(evk_sum.data)):
-            update_part_b = self.ntt.mont_mult(evk_sum_mult.data[ksk_idx].data[0], sk.data)
-            update_part_a = self.ntt.mont_mult(evk_sum_mult.data[ksk_idx].data[1], sk.data)
+            update_part_b = self.ntt.mont_mult(
+                evk_sum_mult.data[ksk_idx].data[0], sk.data
+            )
+            update_part_a = self.ntt.mont_mult(
+                evk_sum_mult.data[ksk_idx].data[1], sk.data
+            )
             for dev_id in range(len(update_part_b)):
-                evk_sum_mult.data[ksk_idx].data[0][dev_id].copy_(update_part_b[dev_id], non_blocking=True)
-                evk_sum_mult.data[ksk_idx].data[1][dev_id].copy_(update_part_a[dev_id], non_blocking=True)
+                evk_sum_mult.data[ksk_idx].data[0][dev_id].copy_(
+                    update_part_b[dev_id], non_blocking=True
+                )
+                evk_sum_mult.data[ksk_idx].data[1][dev_id].copy_(
+                    update_part_a[dev_id], non_blocking=True
+                )
 
         return evk_sum_mult
 
-    def multiparty_sum_evk_share_mult(self, evk_sum_mult: list[DataStruct]) -> DataStruct:
+    def multiparty_sum_evk_share_mult(
+        self, evk_sum_mult: list[DataStruct]
+    ) -> DataStruct:
         cevk = self.clone(evk_sum_mult[0])
         for evk in evk_sum_mult[1:]:
             for ksk_idx in range(len(cevk.data)):
-                update_part_b = self.ntt.mont_add(cevk.data[ksk_idx].data[0], evk.data[ksk_idx].data[0])
-                update_part_a = self.ntt.mont_add(cevk.data[ksk_idx].data[1], evk.data[ksk_idx].data[1])
+                update_part_b = self.ntt.mont_add(
+                    cevk.data[ksk_idx].data[0], evk.data[ksk_idx].data[0]
+                )
+                update_part_a = self.ntt.mont_add(
+                    cevk.data[ksk_idx].data[1], evk.data[ksk_idx].data[1]
+                )
                 for dev_id in range(len(update_part_b)):
-                    cevk.data[ksk_idx].data[0][dev_id].copy_(update_part_b[dev_id], non_blocking=True)
-                    cevk.data[ksk_idx].data[1][dev_id].copy_(update_part_a[dev_id], non_blocking=True)
+                    cevk.data[ksk_idx].data[0][dev_id].copy_(
+                        update_part_b[dev_id], non_blocking=True
+                    )
+                    cevk.data[ksk_idx].data[1][dev_id].copy_(
+                        update_part_a[dev_id], non_blocking=True
+                    )
         return cevk

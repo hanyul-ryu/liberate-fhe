@@ -2,10 +2,9 @@ import numpy as np
 
 
 class RnsPartition:
-    def __init__(self, num_ordinary_primes=17,
-                 num_special_primes=2,
-                 num_devices=1):
-
+    def __init__(
+        self, num_ordinary_primes=17, num_special_primes=2, num_devices=1
+    ):
         # RNS primes ordered as
         # for the case where
         # num_ordinary_primes = 17
@@ -22,7 +21,7 @@ class RnsPartition:
         # lane 1:[[0, 1], [4, 5], [8, 9], [12, 13], [17, 18]]]
 
         # For divmod application in key switching and the final rescaling,
-        # We 'cache' the last (other than the base prime) 
+        # We 'cache' the last (other than the base prime)
         # alpha partition at every device. This will allow us to avoid
         # 'some' inter-device communications.
 
@@ -40,7 +39,9 @@ class RnsPartition:
         # -(-x//y) = ceil(x/y)
         num_partitions = -(-(num_ordinary_primes - 1) // num_special_primes)
 
-        part = lambda i: primes_idx[i * num_special_primes:(i + 1) * num_special_primes]
+        part = lambda i: primes_idx[
+            i * num_special_primes : (i + 1) * num_special_primes
+        ]
         partitions = [part(i) for i in range(num_partitions)]
 
         # Augment the base prime partition.
@@ -49,25 +50,37 @@ class RnsPartition:
         # Augment the special prime partition.
         partitions.append(
             list(
-                range(num_ordinary_primes, num_ordinary_primes + num_special_primes)))
+                range(
+                    num_ordinary_primes,
+                    num_ordinary_primes + num_special_primes,
+                )
+            )
+        )
 
         # Distribute parts.
         # Note that we distribute only the non-base partitions.
-        alloc = lambda i: list(range(num_partitions - i - 1, -1, -num_devices))[::-1]
+        alloc = lambda i: list(
+            range(num_partitions - i - 1, -1, -num_devices)
+        )[::-1]
         part_allocations = [alloc(i) for i in range(num_devices)]
 
         # Augment the base prime.
         part_allocations[0].append(num_partitions)
 
         # Augment the special primes.
-        for p in part_allocations: p.append(num_partitions + 1)
+        for p in part_allocations:
+            p.append(num_partitions + 1)
 
         # Expand partitions.
-        expand_alloc = lambda i: [partitions[part] for part in part_allocations[i]]
+        expand_alloc = lambda i: [
+            partitions[part] for part in part_allocations[i]
+        ]
         prime_allocations = [expand_alloc(i) for i in range(num_devices)]
 
         # Flatten expanded partitions.
-        flat_prime_allocations = [sum(alloc, []) for alloc in prime_allocations]
+        flat_prime_allocations = [
+            sum(alloc, []) for alloc in prime_allocations
+        ]
 
         # Store the results.
         self.num_ordinary_primes = num_ordinary_primes
@@ -84,7 +97,8 @@ class RnsPartition:
         self.special_prime_idx = list(
             range(
                 self.num_ordinary_primes + 1,
-                self.num_ordinary_primes + 1 + self.num_special_primes)
+                self.num_ordinary_primes + 1 + self.num_special_primes,
+            )
         )
 
         # Pre-compute.
@@ -95,7 +109,8 @@ class RnsPartition:
     def compute_destination_arrays(self):
         # Prime channel indices.
         filter_alloc = lambda devi, i: [
-            a for a in self.flat_prime_allocations[devi] if a >= i]
+            a for a in self.flat_prime_allocations[devi] if a >= i
+        ]
 
         self.destination_arrays_with_special = []
         for lvl in range(self.num_ordinary_primes):
@@ -103,10 +118,13 @@ class RnsPartition:
             self.destination_arrays_with_special.append(src)
 
         special_removed = lambda i: [
-            a[:-self.num_special_primes] for a in self.destination_arrays_with_special[i]]
+            a[: -self.num_special_primes]
+            for a in self.destination_arrays_with_special[i]
+        ]
 
         self.destination_arrays = [
-            special_removed(i) for i in range(self.num_ordinary_primes)]
+            special_removed(i) for i in range(self.num_ordinary_primes)
+        ]
 
         # There may be empty lists.
         # Lint it.
@@ -117,21 +135,32 @@ class RnsPartition:
         mins = lambda arr: [min(a) for a in arr]
         mins_loc = lambda a: mins(a).index(min(mins(a)))
         # We use destination_arrays_with_special to prevent empty arrays.
-        self.rescaler_loc = [mins_loc(a) for a in self.destination_arrays_with_special]
+        self.rescaler_loc = [
+            mins_loc(a) for a in self.destination_arrays_with_special
+        ]
 
     def partings(self, lvl):
         count_element_sizes = lambda arr: np.array([len(a) for a in arr])
         cumsum_element_sizes = lambda arr: np.cumsum(arr)
         remove_empty_parts = lambda arr: [a for a in arr if a > 0]
-        regenerate_parts = lambda arr: [list(range(a, b)) for a, b in zip([0] + arr[:-1], arr)]
+        regenerate_parts = lambda arr: [
+            list(range(a, b)) for a, b in zip([0] + arr[:-1], arr)
+        ]
 
         part_counts = [count_element_sizes(a) for a in self.prime_allocations]
         part_cumsums = [cumsum_element_sizes(a) for a in part_counts]
         level_diffs = [
-            len(a) - len(b) for a, b in zip(
-                self.destination_arrays_with_special[0], self.destination_arrays_with_special[lvl])]
+            len(a) - len(b)
+            for a, b in zip(
+                self.destination_arrays_with_special[0],
+                self.destination_arrays_with_special[lvl],
+            )
+        ]
 
-        part_cumsums_lvl = [remove_empty_parts(a - d) for a, d in zip(part_cumsums, level_diffs)]
+        part_cumsums_lvl = [
+            remove_empty_parts(a - d)
+            for a, d in zip(part_cumsums, level_diffs)
+        ]
         part_count_lvl = [np.diff(a, prepend=0) for a in part_cumsums_lvl]
         parts_lvl = [regenerate_parts(a) for a in part_cumsums_lvl]
         return part_cumsums_lvl, part_count_lvl, parts_lvl
@@ -154,11 +183,14 @@ class RnsPartition:
         # We frequently use the destination arrays at level 0.
         # Provide quick access to them
         self.d = [
-            self.destination_arrays[0][dev_i] for dev_i in range(self.num_devices)]
+            self.destination_arrays[0][dev_i]
+            for dev_i in range(self.num_devices)
+        ]
 
         self.d_special = [
             self.destination_arrays_with_special[0][dev_i]
-            for dev_i in range(self.num_devices)]
+            for dev_i in range(self.num_devices)
+        ]
 
         for lvl in range(self.num_ordinary_primes):
             pcu, pco, par = self.partings(lvl)
@@ -168,11 +200,9 @@ class RnsPartition:
 
             dest = self.destination_arrays_with_special[lvl]
             destp_special = [
-                [
-                    [
-                        d[pi] for pi in p
-                    ] for p in dev_p
-                ] for d, dev_p in zip(dest, par)]
+                [[d[pi] for pi in p] for p in dev_p]
+                for d, dev_p in zip(dest, par)
+            ]
             destp = [dev_dp[:-1] for dev_dp in destp_special]
 
             self.destination_parts.append(destp)
@@ -183,12 +213,17 @@ class RnsPartition:
             # We may need prime index that are directed to the level 0
             # prime series.
             # We generate such parts, namely p
-            diff = [len(d1) - len(d2) for d1, d2 in zip(
-                self.destination_arrays_with_special[0],
-                self.destination_arrays_with_special[lvl])]
-            p_special = [[[pi + d for pi in p]
-                          for p in dev_p]
-                         for d, dev_p in zip(diff, self.parts[lvl])]
+            diff = [
+                len(d1) - len(d2)
+                for d1, d2 in zip(
+                    self.destination_arrays_with_special[0],
+                    self.destination_arrays_with_special[lvl],
+                )
+            ]
+            p_special = [
+                [[pi + d for pi in p] for p in dev_p]
+                for d, dev_p in zip(diff, self.parts[lvl])
+            ]
             p = [dev_p[:-1] for dev_p in p_special]
 
             self.p.append(p)

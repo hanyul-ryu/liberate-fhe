@@ -3,7 +3,6 @@ import os
 
 import numpy as np
 import torch
-
 from liberate_cpu.utils.threadpool import jthreadpool
 
 from .chacha20_cpu import chacha20_cpu
@@ -26,10 +25,23 @@ def is_power_of_two(n):
 
 
 class Csprng:
-    def __init__(self, num_coefs=2 ** 15, num_channels=[8], num_repeating_channels=2,
-                 sigma=3.2, seed=None, nonce=None, thread_load=1, num_threads=None, devices=None, tp=None, **kwargs):
+    def __init__(
+        self,
+        num_coefs=2**15,
+        num_channels=[8],
+        num_repeating_channels=2,
+        sigma=3.2,
+        seed=None,
+        nonce=None,
+        thread_load=1,
+        num_threads=None,
+        devices=None,
+        tp=None,
+        **kwargs,
+    ):
         """N is the length of the polynomial, and C is the number of RNS channels.
-        procure the maximum (at level zero, special multiplication) at initialization."""
+        procure the maximum (at level zero, special multiplication) at initialization.
+        """
 
         # This CSPRNG class generates
         # 1. num_coefs x (num_channels + num_repeating_channels) uniform distributed
@@ -73,31 +85,43 @@ class Csprng:
         self.L = self.num_coefs // 4
 
         # We build binary search tree for discrete gaussian here.
-        self.btree, self.btree_ptr, self.btree_size, self.tree_depth = \
-            build_CDT_binary_search_tree(security_bits=128, sigma=sigma)
+        (
+            self.btree,
+            self.btree_ptr,
+            self.btree_size,
+            self.tree_depth,
+        ) = build_CDT_binary_search_tree(security_bits=128, sigma=sigma)
 
         # Total increment to add to counters after each random bytes generation.
-        self.inc = (self.num_channels[0] + self.num_repeating_channels) * self.L
+        self.inc = (
+            self.num_channels[0] + self.num_repeating_channels
+        ) * self.L
 
         # expand 32-byte k.
         # This is 1634760805, 857760878, 2036477234, 1797285236.
         str2ord = lambda s: sum([2 ** (i * 8) * c for i, c in enumerate(s)])
         str_constant = torch.tensor(
             [
-                str2ord(b'expa'), str2ord(b'nd 3'), str2ord(b'2-by'), str2ord(b'te k')
-            ], dtype=torch.int64
+                str2ord(b"expa"),
+                str2ord(b"nd 3"),
+                str2ord(b"2-by"),
+                str2ord(b"te k"),
+            ],
+            dtype=torch.int64,
         )
         self.nothing_up_my_sleeve = str_constant
 
         # Prepare a state tensor.
-        state_size = ((self.num_channels[0] + self.num_repeating_channels) * self.L, 16)
-        self.state = torch.zeros(
-            state_size,
-            dtype=torch.int64
+        state_size = (
+            (self.num_channels[0] + self.num_repeating_channels) * self.L,
+            16,
         )
+        self.state = torch.zeros(state_size, dtype=torch.int64)
 
         # Prepare a channeled views.
-        self.channeled_state = self.state.view((self.num_channels[0] + self.num_repeating_channels), self.L, -1)
+        self.channeled_state = self.state.view(
+            (self.num_channels[0] + self.num_repeating_channels), self.L, -1
+        )
 
         # The counter.
         counter_list = list(range(0, self.inc))
@@ -129,7 +153,6 @@ class Csprng:
         self.initialize_state(seed, nonce)
 
     def initialize_state(self, seed=None, nonce=None):
-
         state = self.state
         state.zero_()
 
@@ -153,7 +176,8 @@ class Csprng:
             n_keys = nbytes // part_bytes
             hex2int = lambda x, nbytes: int(binascii.hexlify(x), 16)
             seed0 = [
-                hex2int(os.urandom(part_bytes), part_bytes) for _ in range(n_keys)
+                hex2int(os.urandom(part_bytes), part_bytes)
+                for _ in range(n_keys)
             ]
             seed_tensor = torch.tensor(seed0, dtype=torch.int64)
         else:
@@ -172,7 +196,9 @@ class Csprng:
         # nonce is 64bits.
         return self.generate_initial_bytes(8, seed=None)
 
-    def randbytes(self, num_channels=None, length=None, reshape=False, repeats=1):
+    def randbytes(
+        self, num_channels=None, length=None, reshape=False, repeats=1
+    ):
         if length is None:
             L = self.L
         else:
@@ -184,7 +210,9 @@ class Csprng:
             C = num_channels
 
         # Set the target state.
-        target_state = self.channeled_state[:C, :L, :].view(-1, 16).contiguous()
+        target_state = (
+            self.channeled_state[:C, :L, :].view(-1, 16).contiguous()
+        )
 
         # Derive random bytes.
         chunk = C * L // (self.num_threads * self.thread_load)
@@ -215,20 +243,30 @@ class Csprng:
 
         # Convert the amax list to contiguous numpy array pointers.
         q_conti = np.ascontiguousarray(amax[0], dtype=np.uint64)
-        q_ptr = q_conti.__array_interface__['data'][0]
+        q_ptr = q_conti.__array_interface__["data"][0]
 
         # Set the target states.
         target_states = []
         start_channel = self.shares[0] - shares[0]
         end_channel = self.shares[0] + repeats
-        target_state = self.channeled_state[start_channel:end_channel, :L, :].contiguous()
+        target_state = self.channeled_state[
+            start_channel:end_channel, :L, :
+        ].contiguous()
 
-        chunk = (end_channel - start_channel) * L // (self.num_threads * self.thread_load)
-        result = randint_cpu(target_state, q_ptr, shift, self.inc, chunk, self.tp)
+        chunk = (
+            (end_channel - start_channel)
+            * L
+            // (self.num_threads * self.thread_load)
+        )
+        result = randint_cpu(
+            target_state, q_ptr, shift, self.inc, chunk, self.tp
+        )
 
         return [result]
 
-    def discrete_gaussian(self, non_repeats=0, repeats=1, length=None, reshape=False):
+    def discrete_gaussian(
+        self, non_repeats=0, repeats=1, length=None, reshape=False
+    ):
         if not isinstance(non_repeats, (list, tuple)):
             shares = [non_repeats]
         else:
@@ -244,14 +282,20 @@ class Csprng:
         start_channel = self.shares[0] - shares[0]
         end_channel = self.shares[0] + repeats
         target_state = self.channeled_state[
-                       start_channel:end_channel, :L, :
-                       ].contiguous()
+            start_channel:end_channel, :L, :
+        ].contiguous()
         C = target_state.size(0)
         chunk = C * L // (self.num_threads * self.thread_load)
 
-        dg = discrete_gaussian_cpu(target_state, self.inc,
-                                   self.btree_ptr, self.btree_size, self.tree_depth,
-                                   chunk, self.tp)
+        dg = discrete_gaussian_cpu(
+            target_state,
+            self.inc,
+            self.btree_ptr,
+            self.btree_size,
+            self.tree_depth,
+            chunk,
+            self.tp,
+        )
         dg = [dg.view(-1, self.num_coefs)]
 
         return dg

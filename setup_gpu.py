@@ -23,7 +23,9 @@ ext_modules = [
         name="discrete_gaussian_cuda",
         sources=[
             os.path.join(path_source, "csprng/discrete_gaussian.cpp"),
-            os.path.join(path_source, "csprng/discrete_gaussian_cuda_kernel.cu"),
+            os.path.join(
+                path_source, "csprng/discrete_gaussian_cuda_kernel.cu"
+            ),
         ],
     ),
     CUDAExtension(

@@ -4,12 +4,14 @@ import shutil
 
 def clean_project():
     """
-        Remove common build directories and *.so files in a Python project.
+    Remove common build directories and *.so files in a Python project.
     """
     # Directories to remove
     dirs_to_remove = [
-        "__pycache__", ".pytest_cache",
-        "build", "*.egg-info",  # "dist",
+        "__pycache__",
+        ".pytest_cache",
+        "build",
+        "*.egg-info",  # "dist",
     ]
     # File patterns to remove
     files_to_remove = ["*.so"]
