@@ -79,3 +79,6 @@ line_length = 79
 
 [tool.poetry.scripts]
 clean = "clean:clean_project"
+
+[tool.poetry.build]
+script = "build.py"
