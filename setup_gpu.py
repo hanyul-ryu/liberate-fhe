@@ -1,33 +1,36 @@
+import os
+
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
+path_source = "src/liberate/gpu"
 ext_modules = [
     CUDAExtension(
         name="randint_cuda",
         sources=[
-            "src/liberate/gpu/csprng/randint.cpp",
-            "src/liberate/gpu/csprng/randint_cuda_kernel.cu",
+            os.path.join(path_source, "csprng/randint.cpp"),
+            os.path.join(path_source, "csprng/randint_cuda_kernel.cu"),
         ],
     ),
     CUDAExtension(
         name="randround_cuda",
         sources=[
-            "src/liberate/gpu/csprng/randround.cpp",
-            "src/liberate/gpu/csprng/randround_cuda_kernel.cu",
+            os.path.join(path_source, "csprng/randround.cpp"),
+            os.path.join(path_source, "csprng/randround_cuda_kernel.cu"),
         ],
     ),
     CUDAExtension(
         name="discrete_gaussian_cuda",
         sources=[
-            "src/liberate/gpu/csprng/discrete_gaussian.cpp",
-            "src/liberate/gpu/csprng/discrete_gaussian_cuda_kernel.cu",
+            os.path.join(path_source, "csprng/discrete_gaussian.cpp"),
+            os.path.join(path_source, "csprng/discrete_gaussian_cuda_kernel.cu"),
         ],
     ),
     CUDAExtension(
         name="chacha20_cuda",
         sources=[
-            "src/liberate/gpu/csprng/chacha20.cpp",
-            "src/liberate/gpu/csprng/chacha20_cuda_kernel.cu",
+            os.path.join(path_source, "csprng/chacha20.cpp"),
+            os.path.join(path_source, "csprng/chacha20_cuda_kernel.cu"),
         ],
     ),
 ]
@@ -36,8 +39,8 @@ ext_modules_ntt = [
     CUDAExtension(
         name="ntt_cuda",
         sources=[
-            "src/liberate/gpu/ntt/ntt.cpp",
-            "src/liberate/gpu/ntt/ntt_cuda_kernel.cu",
+            os.path.join(path_source, "ntt/ntt.cpp"),
+            os.path.join(path_source, "ntt/ntt_cuda_kernel.cu"),
         ],
     )
 ]
