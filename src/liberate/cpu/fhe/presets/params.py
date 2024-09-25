@@ -5,7 +5,7 @@ data = {
     "bronze": {
         "logN": 14,
         "num_special_primes": 1,
-        # "devices": ["cpu"],
+        "devices": ["cpu"],
         "scale_bits": 40,
         "num_scales": None,
     },
@@ -19,14 +19,14 @@ data = {
     "gold": {
         "logN": 16,
         "num_special_primes": 4,
-        # "devices": ["cpu"],
+        "devices": ["cpu"],
         "scale_bits": 40,
         "num_scales": None,
     },
     "platinum": {
         "logN": 17,
         "num_special_primes": 6,
-        # "devices": ["cpu"],
+        "devices": ["cpu"],
         "scale_bits": 40,
         "num_scales": None,
     },

@@ -1,2 +1,1 @@
-from .gpu import fhe
-from .cpu import fhe
+from . import cpu, gpu

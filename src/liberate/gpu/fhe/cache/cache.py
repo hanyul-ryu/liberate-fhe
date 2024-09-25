@@ -1,7 +1,6 @@
 import glob
 import os
 
-
 path_cache = os.path.abspath(__file__).replace("cache.py", "resources")
 
 
