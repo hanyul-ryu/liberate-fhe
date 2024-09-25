@@ -1,7 +1,6 @@
 import glob
 import os
 
-from ..context import generate_primes
 
 path_cache = os.path.abspath(__file__).replace("cache.py", "resources")
 
@@ -25,6 +24,7 @@ def clean_cache(path=None):
 
 
 def generate_cache(path=None):
+    from ..context import generate_primes
     if path is None:
         path = path_cache
     # Read in pre-calculated high-quality primes.
