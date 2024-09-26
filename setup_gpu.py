@@ -104,7 +104,9 @@ if is_cuda_available:
     ]
 
 else:
+    print("#####################################################")
     print(">>>> CUDA is not available. Skipping GPU extensions.")
+    print("#####################################################")
     ext_modules = []
 
 if __name__ == "__main__":
