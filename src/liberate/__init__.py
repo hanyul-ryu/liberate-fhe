@@ -4,9 +4,9 @@ if os.getenv("USE_GPU", "false").lower() == "true":
     print("#######################")
     print(">>>> Using GPU backend")
     print("#######################")
-    from . import gpu
+    from .gpu import fhe
 else:
     print("#######################")
     print(">>>> Using CPU backend")
     print("#######################")
-    from . import cpu
+    from .cpu import fhe
