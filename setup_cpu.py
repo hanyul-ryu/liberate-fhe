@@ -113,6 +113,10 @@ if __name__ == "__main__":
     setup(
         name="extensions",
         ext_modules=ext_modules,
-        cmdclass={"build_ext": CustomBuildExt},
-        script_args=["build_ext"],
+        cmdclass={
+            "build_ext": CustomBuildExt
+        },
+        script_args=[
+            "build_ext"
+        ],
     )

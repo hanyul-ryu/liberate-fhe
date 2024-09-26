@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
@@ -17,74 +18,92 @@ class CustomBuildExt(BuildExtension):
         super().build_extension(ext)
 
 
-ext_modules = [
-    ###################
-    ####    ntt    ####
-    ###################
-    CUDAExtension(
-        name="ntt_cuda",
-        sources=[
-            os.path.join(path_source, "ntt/ntt.cpp"),
-            os.path.join(path_source, "ntt/ntt_cuda_kernel.cu"),
-        ],
-        extra_compile_args={
-            "cxx": [
-                "-O3", "-DNDEBUG"
-            ]
-        }
-    ),
-    ###################
-    ####    rng    ####
-    ###################
-    CUDAExtension(
-        name="randint_cuda",
-        sources=[
-            os.path.join(path_source, "csprng/randint.cpp"),
-            os.path.join(path_source, "csprng/randint_cuda_kernel.cu"),
-        ],
-        extra_compile_args={
-            "cxx": [
-                "-O3", "-DNDEBUG"
-            ]
-        }
-    ),
-    CUDAExtension(
-        name="randround_cuda",
-        sources=[
-            os.path.join(path_source, "csprng/randround.cpp"),
-            os.path.join(path_source, "csprng/randround_cuda_kernel.cu"),
-        ],
-        extra_compile_args={
-            "cxx": [
-                "-O3", "-DNDEBUG"
-            ]
-        }
-    ),
-    CUDAExtension(
-        name="discrete_gaussian_cuda",
-        sources=[
-            os.path.join(path_source, "csprng/discrete_gaussian.cpp"),
-            os.path.join(path_source, "csprng/discrete_gaussian_cuda_kernel.cu"),
-        ],
-        extra_compile_args={
-            "cxx": [
-                "-O3", "-DNDEBUG"
-            ]
-        }
-    ),
-    CUDAExtension(
-        name="chacha20_cuda",
-        sources=[
-            os.path.join(path_source, "csprng/chacha20.cpp"),
-            os.path.join(path_source, "csprng/chacha20_cuda_kernel.cu"),
-        ],
-        extra_compile_args={
-            "cxx": [
-                "-O3", "-DNDEBUG"
-            ]
-        }
-    ),
-]
+def check_cuda_available():
+    """
+        Check if CUDA is available by attempting to run nvcc.
+    """
+    try:
+        subprocess.run(["nvcc", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
+is_cuda_available = check_cuda_available()
+
+if is_cuda_available:
+    ext_modules = [
+        ###################
+        ####    ntt    ####
+        ###################
+        CUDAExtension(
+            name="ntt_cuda",
+            sources=[
+                os.path.join(path_source, "ntt/ntt.cpp"),
+                os.path.join(path_source, "ntt/ntt_cuda_kernel.cu"),
+            ],
+            extra_compile_args={
+                "cxx": [
+                    "-O3", "-DNDEBUG"
+                ]
+            }
+        ),
+        ###################
+        ####    rng    ####
+        ###################
+        CUDAExtension(
+            name="randint_cuda",
+            sources=[
+                os.path.join(path_source, "csprng/randint.cpp"),
+                os.path.join(path_source, "csprng/randint_cuda_kernel.cu"),
+            ],
+            extra_compile_args={
+                "cxx": [
+                    "-O3", "-DNDEBUG"
+                ]
+            }
+        ),
+        CUDAExtension(
+            name="randround_cuda",
+            sources=[
+                os.path.join(path_source, "csprng/randround.cpp"),
+                os.path.join(path_source, "csprng/randround_cuda_kernel.cu"),
+            ],
+            extra_compile_args={
+                "cxx": [
+                    "-O3", "-DNDEBUG"
+                ]
+            }
+        ),
+        CUDAExtension(
+            name="discrete_gaussian_cuda",
+            sources=[
+                os.path.join(path_source, "csprng/discrete_gaussian.cpp"),
+                os.path.join(path_source, "csprng/discrete_gaussian_cuda_kernel.cu"),
+            ],
+            extra_compile_args={
+                "cxx": [
+                    "-O3", "-DNDEBUG"
+                ]
+            }
+        ),
+        CUDAExtension(
+            name="chacha20_cuda",
+            sources=[
+                os.path.join(path_source, "csprng/chacha20.cpp"),
+                os.path.join(path_source, "csprng/chacha20_cuda_kernel.cu"),
+            ],
+            extra_compile_args={
+                "cxx": [
+                    "-O3", "-DNDEBUG"
+                ]
+            }
+        ),
+    ]
+
+else:
+    print("CUDA is not available. Skipping GPU extensions.")
+    ext_modules = []
 
 if __name__ == "__main__":
     setup(
