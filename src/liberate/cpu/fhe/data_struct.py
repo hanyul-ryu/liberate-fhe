@@ -16,12 +16,11 @@ class DataStruct(NamedTuple):
     - version: String, version number.
     """
 
-    data: tuple
+    data: tuple | list
     include_special: bool
     ntt_state: bool
     montgomery_state: bool
     origin: str
     level: int
-    level_available: int
     hash: str
     version: str = VERSION
