@@ -2,6 +2,7 @@ import os
 import subprocess
 
 from setuptools import setup
+import torch
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 path_source = "src/liberate/gpu"
@@ -29,7 +30,8 @@ def check_cuda_available():
         return False
 
 
-is_cuda_available = check_cuda_available()
+# is_cuda_available = check_cuda_available()
+is_cuda_available = torch.cuda.is_available()
 
 if is_cuda_available:
     ext_modules = [
@@ -102,7 +104,7 @@ if is_cuda_available:
     ]
 
 else:
-    print("CUDA is not available. Skipping GPU extensions.")
+    print(">>>> CUDA is not available. Skipping GPU extensions.")
     ext_modules = []
 
 if __name__ == "__main__":

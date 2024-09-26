@@ -1,7 +1,7 @@
 import glob
 import os
 
-path_cache = os.path.abspath(__file__).replace("cache.py", "resources")
+path_cache = os.path.abspath(__file__).replace(os.path.basename(__file__), "resources")
 
 
 # logN_N_M = os.path.join(path_cache, "logN_N_M.pkl")
