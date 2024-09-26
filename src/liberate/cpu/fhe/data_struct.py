@@ -22,6 +22,5 @@ class DataStruct(NamedTuple):
     montgomery_state: bool
     origin: str
     level: int
-    level_available: int
     hash: str
     version: str = VERSION

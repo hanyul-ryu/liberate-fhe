@@ -479,7 +479,6 @@ class ClientCkksEngine:
             ntt_state=True,
             origin=types.origins["sk"],
             level=0,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -527,7 +526,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["pk"],
             level=0,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -544,7 +542,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["sk"],
             level=sk.level,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -568,7 +565,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["sk"],
             level=0,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -592,7 +588,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["galk"],
             level=0,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -615,7 +610,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["sk"],
             level=0,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -685,7 +679,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["ksk"],
             level=level,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -759,7 +752,6 @@ class ClientCkksEngine:
             montgomery_state=False,
             origin=types.origins["ct"],
             level=level,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -1059,7 +1051,6 @@ class ClientCkksEngine:
             montgomery_state=False,
             origin=types.origins["ct"],
             level=level,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -1238,7 +1229,6 @@ class ClientCkksEngine:
                 montgomery_state=text.montgomery_state,
                 origin=text.origin,
                 level=text.level,
-                level_available=self.num_levels,
                 hash=text.hash,
                 version=text.version,
             )
@@ -1251,7 +1241,6 @@ class ClientCkksEngine:
                 montgomery_state=text.montgomery_state,
                 origin=text.origin,
                 level=text.level,
-                level_available=self.num_levels,
                 hash=text.hash,
                 version=text.version,
             )
@@ -1370,7 +1359,6 @@ class ClientCkksEngine:
                 montgomery_state=text.montgomery_state,
                 origin=text.origin,
                 level=text.level,
-                level_available=self.num_levels,
                 hash=text.hash,
                 version=text.version,
             )
@@ -1383,7 +1371,6 @@ class ClientCkksEngine:
                 montgomery_state=text.montgomery_state,
                 origin=text.origin,
                 level=text.level,
-                level_available=self.num_levels,
                 hash=text.hash,
                 version=text.version,
             )
@@ -1571,7 +1558,6 @@ class ClientCkksEngine:
             origin=types.origins["pk"],
             level=level,
             hash=self.hash,
-            level_available=self.num_levels,
             version=self.version,
         )
         return pk
@@ -1587,7 +1573,6 @@ class ClientCkksEngine:
             origin,
             level,
             hash_,
-            level_available,
             version,
         ) = pks[0]
         mult_type = -2 if include_special else -1
@@ -1604,7 +1589,6 @@ class ClientCkksEngine:
             montgomery_state=montgomery_state,
             origin=types.origins["pk"],
             level=level,
-            level_available=level_available,
             hash=self.hash,
             version=self.version,
         )
@@ -1758,7 +1742,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["ksk"],
             level=level,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -1777,7 +1760,6 @@ class ClientCkksEngine:
             montgomery_state=True,
             origin=types.origins["sk"],
             level=0,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
@@ -1848,7 +1830,6 @@ class ClientCkksEngine:
             ntt_state=True,
             origin=types.origins["galk"],
             level=0,
-            level_available=self.num_levels,
             hash=self.hash,
             version=self.version,
         )
