@@ -12,7 +12,7 @@ from liberate.gpu.ntt import ntt_context, ntt_cuda
 
 #  from context.ckks_context import ckks_context
 from .context.ckks_context import ckks_context
-from .data_struct import DataStruct
+from src.liberate.data_struct import DataStruct
 from .encdec import conjugate, decode, encode, rotate
 from .presets import errors, types
 from .version import VERSION

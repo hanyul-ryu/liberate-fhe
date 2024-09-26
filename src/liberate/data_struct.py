@@ -1,6 +1,6 @@
 from typing import NamedTuple
 
-from .version import VERSION
+from src.liberate.gpu.fhe.version import VERSION
 
 
 class DataStruct(NamedTuple):
