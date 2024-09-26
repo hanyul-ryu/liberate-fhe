@@ -12,7 +12,7 @@ from liberate.gpu.ntt import ntt_context, ntt_cuda
 
 #  from context.ckks_context import ckks_context
 from .context.ckks_context import ckks_context
-from .data_struct import data_struct
+from .data_struct import DataStruct
 from .encdec import conjugate, decode, encode, rotate
 from .presets import errors, types
 from .version import VERSION
@@ -92,39 +92,39 @@ class ckks_engine:
         self.galois_deltas = [2**i for i in range(self.ctx.logN - 1)]
 
         self.mult_dispatch_dict = {
-            (data_struct, data_struct): self.auto_cc_mult,
-            (list, data_struct): self.mc_mult,
-            (np.ndarray, data_struct): self.mc_mult,
-            (data_struct, np.ndarray): self.cm_mult,
-            (data_struct, list): self.cm_mult,
-            (float, data_struct): self.scalar_mult,
-            (data_struct, float): self.mult_scalar,
-            (int, data_struct): self.int_scalar_mult,
-            (data_struct, int): self.mult_int_scalar,
+            (DataStruct, DataStruct): self.auto_cc_mult,
+            (list, DataStruct): self.mc_mult,
+            (np.ndarray, DataStruct): self.mc_mult,
+            (DataStruct, np.ndarray): self.cm_mult,
+            (DataStruct, list): self.cm_mult,
+            (float, DataStruct): self.scalar_mult,
+            (DataStruct, float): self.mult_scalar,
+            (int, DataStruct): self.int_scalar_mult,
+            (DataStruct, int): self.mult_int_scalar,
         }
 
         self.add_dispatch_dict = {
-            (data_struct, data_struct): self.auto_cc_add,
-            (list, data_struct): self.mc_add,
-            (np.ndarray, data_struct): self.mc_add,
-            (data_struct, np.ndarray): self.cm_add,
-            (data_struct, list): self.cm_add,
-            (float, data_struct): self.scalar_add,
-            (data_struct, float): self.add_scalar,
-            (int, data_struct): self.scalar_add,
-            (data_struct, int): self.add_scalar,
+            (DataStruct, DataStruct): self.auto_cc_add,
+            (list, DataStruct): self.mc_add,
+            (np.ndarray, DataStruct): self.mc_add,
+            (DataStruct, np.ndarray): self.cm_add,
+            (DataStruct, list): self.cm_add,
+            (float, DataStruct): self.scalar_add,
+            (DataStruct, float): self.add_scalar,
+            (int, DataStruct): self.scalar_add,
+            (DataStruct, int): self.add_scalar,
         }
 
         self.sub_dispatch_dict = {
-            (data_struct, data_struct): self.auto_cc_sub,
-            (list, data_struct): self.mc_sub,
-            (np.ndarray, data_struct): self.mc_sub,
-            (data_struct, np.ndarray): self.cm_sub,
-            (data_struct, list): self.cm_sub,
-            (float, data_struct): self.scalar_sub,
-            (data_struct, float): self.sub_scalar,
-            (int, data_struct): self.scalar_sub,
-            (data_struct, int): self.sub_scalar,
+            (DataStruct, DataStruct): self.auto_cc_sub,
+            (list, DataStruct): self.mc_sub,
+            (np.ndarray, DataStruct): self.mc_sub,
+            (DataStruct, np.ndarray): self.cm_sub,
+            (DataStruct, list): self.cm_sub,
+            (float, DataStruct): self.scalar_sub,
+            (DataStruct, float): self.sub_scalar,
+            (int, DataStruct): self.scalar_sub,
+            (DataStruct, int): self.sub_scalar,
         }
 
     # -------------------------------------------------------------------------------------------
@@ -404,7 +404,7 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
 
     @errors.log_error
-    def create_secret_key(self, include_special: bool = True) -> data_struct:
+    def create_secret_key(self, include_special: bool = True) -> DataStruct:
         uniform_ternary = self.rng.randint(amax=3, shift=-1, repeats=1)
 
         mult_type = -2 if include_special else -1
@@ -413,7 +413,7 @@ class ckks_engine:
         )
         self.ntt.enter_ntt(unsigned_ternary, 0, mult_type)
 
-        return data_struct(
+        return DataStruct(
             data=unsigned_ternary,
             include_special=include_special,
             montgomery_state=True,
@@ -427,10 +427,10 @@ class ckks_engine:
     @errors.log_error
     def create_public_key(
         self,
-        sk: data_struct,
+        sk: DataStruct,
         include_special: bool = False,
         a: list[torch.Tensor] = None,
-    ) -> data_struct:
+    ) -> DataStruct:
         """
         Generates a public key against the secret key sk.
         pk = -a * sk + e = e - a * sk
@@ -460,7 +460,7 @@ class ckks_engine:
         sa = self.ntt.mont_mult(a, sk.data, 0, mult_type)
         pk0 = self.ntt.mont_sub(e, sa, 0, mult_type)
 
-        return data_struct(
+        return DataStruct(
             data=(pk0, a),
             include_special=include_special,
             ntt_state=True,
@@ -477,8 +477,8 @@ class ckks_engine:
 
     @errors.log_error
     def encrypt(
-        self, pt: list[torch.Tensor], pk: data_struct, level: int = 0
-    ) -> data_struct:
+        self, pt: list[torch.Tensor], pk: DataStruct, level: int = 0
+    ) -> DataStruct:
         """
         We again, multiply pt by the scale.
         Since pt is already multiplied by the scale,
@@ -533,7 +533,7 @@ class ckks_engine:
         self.ntt.reduce_2q(ct0, level, mult_type)
         self.ntt.reduce_2q(ct1, level, mult_type)
 
-        ct = data_struct(
+        ct = DataStruct(
             data=(ct0, ct1),
             include_special=mult_type == -2,
             ntt_state=False,
@@ -547,7 +547,7 @@ class ckks_engine:
         return ct
 
     def decrypt_triplet(
-        self, ct_mult: data_struct, sk: data_struct, final_round=True
+        self, ct_mult: DataStruct, sk: DataStruct, final_round=True
     ) -> list[torch.Tensor]:
         if ct_mult.origin != types.origins["ctt"]:
             raise errors.NotMatchType(
@@ -608,7 +608,7 @@ class ckks_engine:
         return scaled
 
     def decrypt_double(
-        self, ct: data_struct, sk: data_struct, final_round=True
+        self, ct: DataStruct, sk: DataStruct, final_round=True
     ) -> list[torch.Tensor]:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
@@ -658,7 +658,7 @@ class ckks_engine:
         return scaled
 
     def decrypt(
-        self, ct: data_struct, sk: data_struct, final_round=True
+        self, ct: DataStruct, sk: DataStruct, final_round=True
     ) -> list[torch.Tensor]:
         """
         Decrypt the cipher text ct using the secret key sk.
@@ -687,8 +687,8 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
 
     def create_key_switching_key(
-        self, sk_from: data_struct, sk_to: data_struct, a=None
-    ) -> data_struct:
+        self, sk_from: DataStruct, sk_to: DataStruct, a=None
+    ) -> DataStruct:
         """
         Creates a key to switch the key for sk_src to sk_dst.
         """
@@ -741,7 +741,7 @@ class ckks_engine:
 
                 ksk[global_part_id] = pk
 
-        return data_struct(
+        return DataStruct(
             data=ksk,
             include_special=True,
             ntt_state=True,
@@ -855,7 +855,7 @@ class ckks_engine:
         return extended
 
     def create_switcher(
-        self, a: list[torch.Tensor], ksk: data_struct, level, exit_ntt=False
+        self, a: list[torch.Tensor], ksk: DataStruct, level, exit_ntt=False
     ) -> tuple:
         # ksk parts allocation.
         ksk_alloc = self.parts_alloc[level]
@@ -1049,7 +1049,7 @@ class ckks_engine:
         # When returning, un-list the results by taking the 0th element.
         return d0[0], d1[0]
 
-    def switch_key(self, ct: data_struct, ksk: data_struct) -> data_struct:
+    def switch_key(self, ct: DataStruct, ksk: DataStruct) -> DataStruct:
         include_special = ct.include_special
         ntt_state = ct.ntt_state
         montgomery_state = ct.montgomery_state
@@ -1063,7 +1063,7 @@ class ckks_engine:
         new_ct0 = self.ntt.mont_add(ct.data[0], d0, level, -1)
         self.ntt.reduce_2q(new_ct0, level, -1)
 
-        return data_struct(
+        return DataStruct(
             data=(new_ct0, d1),
             include_special=include_special,
             ntt_state=ntt_state,
@@ -1077,7 +1077,7 @@ class ckks_engine:
     # Multiplication.
     # -------------------------------------------------------------------------------------------
 
-    def rescale(self, ct: data_struct, exact_rounding=True) -> data_struct:
+    def rescale(self, ct: DataStruct, exact_rounding=True) -> DataStruct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         level = ct.level
@@ -1165,7 +1165,7 @@ class ckks_engine:
         self.ntt.reduce_2q(data0, next_level)
         self.ntt.reduce_2q(data1, next_level)
 
-        return data_struct(
+        return DataStruct(
             data=(data0, data1),
             include_special=False,
             ntt_state=False,
@@ -1176,12 +1176,12 @@ class ckks_engine:
             version=self.version,
         )
 
-    def create_evk(self, sk: data_struct) -> data_struct:
+    def create_evk(self, sk: DataStruct) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
         sk2_data = self.ntt.mont_mult(sk.data, sk.data, 0, -2)
-        sk2 = data_struct(
+        sk2 = DataStruct(
             data=sk2_data,
             include_special=True,
             ntt_state=True,
@@ -1195,8 +1195,8 @@ class ckks_engine:
         return self.create_key_switching_key(sk2, sk)
 
     def cc_mult(
-        self, a: data_struct, b: data_struct, evk: data_struct, relin=True
-    ) -> data_struct:
+        self, a: DataStruct, b: DataStruct, evk: DataStruct, relin=True
+    ) -> DataStruct:
         if a.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=a.origin, to=types.origins["sk"])
         if b.origin != types.origins["ct"]:
@@ -1227,7 +1227,7 @@ class ckks_engine:
 
         d2 = self.ntt.mont_mult(x1, y1, level)
 
-        ct_mult = data_struct(
+        ct_mult = DataStruct(
             data=(d0, d1, d2),
             include_special=False,
             ntt_state=True,
@@ -1242,8 +1242,8 @@ class ckks_engine:
         return ct_mult
 
     def relinearize(
-        self, ct_triplet: data_struct, evk: data_struct
-    ) -> data_struct:
+        self, ct_triplet: DataStruct, evk: DataStruct
+    ) -> DataStruct:
         if ct_triplet.origin != types.origins["ctt"]:
             raise errors.NotMatchType(
                 origin=ct_triplet.origin, to=types.origins["ctt"]
@@ -1271,7 +1271,7 @@ class ckks_engine:
         self.ntt.reduce_2q(d1, level)
 
         # Compose and return.
-        return data_struct(
+        return DataStruct(
             data=(d0, d1),
             include_special=False,
             ntt_state=False,
@@ -1286,8 +1286,8 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
 
     def create_rotation_key(
-        self, sk: data_struct, delta: int, a: list[torch.Tensor] = None
-    ) -> data_struct:
+        self, sk: DataStruct, delta: int, a: list[torch.Tensor] = None
+    ) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
@@ -1295,7 +1295,7 @@ class ckks_engine:
         self.ntt.intt(sk_new_data)
         sk_new_data = [rotate(s, delta) for s in sk_new_data]
         self.ntt.ntt(sk_new_data)
-        sk_rotated = data_struct(
+        sk_rotated = DataStruct(
             data=sk_new_data,
             include_special=False,
             ntt_state=True,
@@ -1310,7 +1310,7 @@ class ckks_engine:
         rotk = rotk._replace(origin=types.origins["rotk"] + f"{delta}")
         return rotk
 
-    def rotate_single(self, ct: data_struct, rotk: data_struct) -> data_struct:
+    def rotate_single(self, ct: DataStruct, rotk: DataStruct) -> DataStruct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if types.origins["rotk"] not in rotk.origin:
@@ -1335,7 +1335,7 @@ class ckks_engine:
             self.ntt.make_unsigned(ct_data, level, mult_type)
             self.ntt.reduce_2q(ct_data, level, mult_type)
 
-        rotated_ct_rotated_sk = data_struct(
+        rotated_ct_rotated_sk = DataStruct(
             data=rotated_ct_data,
             include_special=include_special,
             ntt_state=ntt_state,
@@ -1349,7 +1349,7 @@ class ckks_engine:
         rotated_ct = self.switch_key(rotated_ct_rotated_sk, rotk)
         return rotated_ct
 
-    def create_galois_key(self, sk: data_struct) -> data_struct:
+    def create_galois_key(self, sk: DataStruct) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
 
@@ -1357,7 +1357,7 @@ class ckks_engine:
             self.create_rotation_key(sk, delta) for delta in self.galois_deltas
         ]
 
-        galois_key = data_struct(
+        galois_key = DataStruct(
             data=galois_key_parts,
             include_special=True,
             ntt_state=True,
@@ -1371,11 +1371,11 @@ class ckks_engine:
 
     def rotate_galois(
         self,
-        ct: data_struct,
-        gk: data_struct,
+        ct: DataStruct,
+        gk: DataStruct,
         delta: int,
         return_circuit=False,
-    ) -> data_struct:
+    ) -> DataStruct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if gk.origin != types.origins["galk"]:
@@ -1410,7 +1410,7 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
     # Add/sub.
     # -------------------------------------------------------------------------------------------
-    def cc_add_double(self, a: data_struct, b: data_struct) -> data_struct:
+    def cc_add_double(self, a: DataStruct, b: DataStruct) -> DataStruct:
         if a.origin != types.origins["ct"] or b.origin != types.origins["ct"]:
             raise errors.NotMatchType(
                 origin=f"{a.origin} and {b.origin}", to=types.origins["ct"]
@@ -1428,7 +1428,7 @@ class ckks_engine:
         self.ntt.reduce_2q(c1, level)
         data.extend([c0, c1])
 
-        return data_struct(
+        return DataStruct(
             data=data,
             include_special=False,
             ntt_state=False,
@@ -1438,7 +1438,7 @@ class ckks_engine:
             hash=self.hash,
         )
 
-    def cc_add_triplet(self, a: data_struct, b: data_struct) -> data_struct:
+    def cc_add_triplet(self, a: DataStruct, b: DataStruct) -> DataStruct:
         if (
             a.origin != types.origins["ctt"]
             or b.origin != types.origins["ctt"]
@@ -1462,7 +1462,7 @@ class ckks_engine:
         self.ntt.reduce_2q(c2, level)
         data.append(c2)
 
-        return data_struct(
+        return DataStruct(
             data=data,
             include_special=False,
             ntt_state=True,
@@ -1473,7 +1473,7 @@ class ckks_engine:
             version=self.version,
         )
 
-    def cc_add(self, a: data_struct, b: data_struct) -> data_struct:
+    def cc_add(self, a: DataStruct, b: DataStruct) -> DataStruct:
         if a.origin == types.origins["ct"] and b.origin == types.origins["ct"]:
             ct_add = self.cc_add_double(a, b)
         elif (
@@ -1486,7 +1486,7 @@ class ckks_engine:
 
         return ct_add
 
-    def cc_sub_double(self, a: data_struct, b: data_struct) -> data_struct:
+    def cc_sub_double(self, a: DataStruct, b: DataStruct) -> DataStruct:
         if a.origin != types.origins["ct"] or b.origin != types.origins["ct"]:
             raise errors.NotMatchType(
                 origin=f"{a.origin} and {b.origin}", to=types.origins["ct"]
@@ -1505,7 +1505,7 @@ class ckks_engine:
         self.ntt.reduce_2q(c1, level)
         data.extend([c0, c1])
 
-        return data_struct(
+        return DataStruct(
             data=data,
             include_special=False,
             ntt_state=False,
@@ -1516,7 +1516,7 @@ class ckks_engine:
             version=self.version,
         )
 
-    def cc_sub_triplet(self, a: data_struct, b: data_struct) -> data_struct:
+    def cc_sub_triplet(self, a: DataStruct, b: DataStruct) -> DataStruct:
         if (
             a.origin != types.origins["ctt"]
             or b.origin != types.origins["ctt"]
@@ -1539,7 +1539,7 @@ class ckks_engine:
         self.ntt.reduce_2q(c2, level)
         data.extend([c0, c1, c2])
 
-        return data_struct(
+        return DataStruct(
             data=data,
             include_special=False,
             ntt_state=True,
@@ -1550,7 +1550,7 @@ class ckks_engine:
             version=self.version,
         )
 
-    def cc_sub(self, a: data_struct, b: data_struct) -> data_struct:
+    def cc_sub(self, a: DataStruct, b: DataStruct) -> DataStruct:
         if a.origin != b.origin:
             raise Exception(f"[Error] triplet error")
 
@@ -1571,7 +1571,7 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
     # Level up.
     # -------------------------------------------------------------------------------------------
-    def level_up(self, ct: data_struct, dst_level: int):
+    def level_up(self, ct: DataStruct, dst_level: int):
         if types.origins["ct"] != ct.origin:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
 
@@ -1631,7 +1631,7 @@ class ckks_engine:
         self.ntt.reduce_2q(new_ct_data0, dst_level)
         self.ntt.reduce_2q(new_ct_data1, dst_level)
 
-        new_ct = data_struct(
+        new_ct = DataStruct(
             data=(new_ct_data0, new_ct_data1),
             include_special=False,
             ntt_state=False,
@@ -1648,8 +1648,8 @@ class ckks_engine:
     # Fused enc/dec.
     # -------------------------------------------------------------------------------------------
     def encodecrypt(
-        self, m, pk: data_struct, level: int = 0, padding=True
-    ) -> data_struct:
+        self, m, pk: DataStruct, level: int = 0, padding=True
+    ) -> DataStruct:
         if pk.origin != types.origins["pk"]:
             raise errors.NotMatchType(origin=pk.origin, to=types.origins["pk"])
 
@@ -1739,7 +1739,7 @@ class ckks_engine:
         self.ntt.reduce_2q(ct0, level, mult_type)
         self.ntt.reduce_2q(ct1, level, mult_type)
 
-        ct = data_struct(
+        ct = DataStruct(
             data=(ct0, ct1),
             include_special=mult_type == -2,
             ntt_state=False,
@@ -1753,8 +1753,8 @@ class ckks_engine:
         return ct
 
     def decryptcode(
-        self, ct: data_struct, sk: data_struct, is_real=False, final_round=True
-    ) -> data_struct:
+        self, ct: DataStruct, sk: DataStruct, is_real=False, final_round=True
+    ) -> DataStruct:
         if (not sk.ntt_state) or (not sk.montgomery_state):
             raise errors.NotMatchDataStructState(origin=sk.origin)
 
@@ -1883,11 +1883,11 @@ class ckks_engine:
         return decoded
 
     # Shortcuts.
-    def encorypt(self, m, pk: data_struct, level: int = 0, padding=True):
+    def encorypt(self, m, pk: DataStruct, level: int = 0, padding=True):
         return self.encodecrypt(m, pk=pk, level=level, padding=padding)
 
     def decrode(
-        self, ct: data_struct, sk: data_struct, is_real=False, final_round=True
+        self, ct: DataStruct, sk: DataStruct, is_real=False, final_round=True
     ):
         return self.decryptcode(
             ct=ct, sk=sk, is_real=is_real, final_round=final_round
@@ -1897,7 +1897,7 @@ class ckks_engine:
     # Conjugation
     # -------------------------------------------------------------------------------------------
 
-    def create_conjugation_key(self, sk: data_struct) -> data_struct:
+    def create_conjugation_key(self, sk: DataStruct) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         if (not sk.ntt_state) or (not sk.montgomery_state):
@@ -1907,7 +1907,7 @@ class ckks_engine:
         self.ntt.intt(sk_new_data)
         sk_new_data = [conjugate(s) for s in sk_new_data]
         self.ntt.ntt(sk_new_data)
-        sk_rotated = data_struct(
+        sk_rotated = DataStruct(
             data=sk_new_data,
             include_special=False,
             ntt_state=True,
@@ -1921,11 +1921,11 @@ class ckks_engine:
         rotk = rotk._replace(origin=types.origins["conjk"])
         return rotk
 
-    def conjugate(self, ct: data_struct, conjk: data_struct):
+    def conjugate(self, ct: DataStruct, conjk: DataStruct):
         level = ct.level
         conj_ct_data = [[conjugate(d) for d in ct_data] for ct_data in ct.data]
 
-        conj_ct_sk = data_struct(
+        conj_ct_sk = DataStruct(
             data=conj_ct_data,
             include_special=False,
             ntt_state=False,
@@ -1943,7 +1943,7 @@ class ckks_engine:
         # Clone.
         # -------------------------------------------------------------------------------------------
 
-    def clone_tensors(self, data: data_struct) -> data_struct:
+    def clone_tensors(self, data: DataStruct) -> DataStruct:
         new_data = []
         # Some data has 1 depth.
         if not isinstance(data[0], list):
@@ -1957,11 +1957,11 @@ class ckks_engine:
         return new_data
 
     def clone(self, text):
-        if not isinstance(text.data[0], data_struct):
+        if not isinstance(text.data[0], DataStruct):
             # data are tensors.
             data = self.clone_tensors(text.data)
 
-            wrapper = data_struct(
+            wrapper = DataStruct(
                 data=data,
                 include_special=text.include_special,
                 ntt_state=text.ntt_state,
@@ -1973,7 +1973,7 @@ class ckks_engine:
             )
 
         else:
-            wrapper = data_struct(
+            wrapper = DataStruct(
                 data=[],
                 include_special=text.include_special,
                 ntt_state=text.ntt_state,
@@ -2082,7 +2082,7 @@ class ckks_engine:
         return new_data
 
     def move_to(self, text, direction="gpu2cpu"):
-        if not isinstance(text.data[0], data_struct):
+        if not isinstance(text.data[0], DataStruct):
             level = text.level
             include_special = text.include_special
 
@@ -2091,7 +2091,7 @@ class ckks_engine:
                 text.data, level, include_special, direction
             )
 
-            wrapper = data_struct(
+            wrapper = DataStruct(
                 data,
                 text.include_special,
                 text.ntt_state,
@@ -2103,7 +2103,7 @@ class ckks_engine:
             )
 
         else:
-            wrapper = data_struct(
+            wrapper = DataStruct(
                 [],
                 text.include_special,
                 text.ntt_state,
@@ -2140,7 +2140,7 @@ class ckks_engine:
             return data[0][0].device.type
 
     def device(self, text):
-        if not isinstance(text.data[0], data_struct):
+        if not isinstance(text.data[0], DataStruct):
             # data are tensors.
             return self.tensor_device(text.data)
         else:
@@ -2213,7 +2213,7 @@ class ckks_engine:
         lead_text = self.tree_lead_text(level)
         print(f"{lead_text} {text.origin}")
 
-        if not isinstance(text.data[0], data_struct):
+        if not isinstance(text.data[0], DataStruct):
             self.print_data_shapes(text.data, level + 1)
         else:
             for d in text.data:
@@ -2260,7 +2260,7 @@ class ckks_engine:
         # Negate.
         # -------------------------------------------------------------------------------------------
 
-    def negate(self, ct: data_struct) -> data_struct:
+    def negate(self, ct: DataStruct) -> DataStruct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(
                 origin=ct.origin, to=types.origins["ct"]
@@ -2279,7 +2279,7 @@ class ckks_engine:
         # scalar ops.
         # -------------------------------------------------------------------------------------------
 
-    def mult_int_scalar(self, ct: data_struct, scalar, evk=None, relin=True):
+    def mult_int_scalar(self, ct: DataStruct, scalar, evk=None, relin=True):
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
 
@@ -2563,11 +2563,11 @@ class ckks_engine:
 
     def cov(
         self,
-        ct_a: data_struct,
-        ct_b: data_struct,
-        evk: data_struct,
-        gk: data_struct,
-    ) -> data_struct:
+        ct_a: DataStruct,
+        ct_b: DataStruct,
+        evk: DataStruct,
+        gk: DataStruct,
+    ) -> DataStruct:
         cta_mean = self.mean(ct_a, gk)
         ctb_mean = self.mean(ct_b, gk)
 
@@ -2581,8 +2581,8 @@ class ckks_engine:
         return ct_cov
 
     def pow(
-        self, ct: data_struct, power: int, evk: data_struct
-    ) -> data_struct:
+        self, ct: DataStruct, power: int, evk: DataStruct
+    ) -> DataStruct:
         current_exponent = 2
         pow_list = [ct]
         while current_exponent <= power:
@@ -2603,8 +2603,8 @@ class ckks_engine:
         return new_ct
 
     def square(
-        self, ct: data_struct, evk: data_struct, relin=True
-    ) -> data_struct:
+        self, ct: DataStruct, evk: DataStruct, relin=True
+    ) -> DataStruct:
         x = self.rescale(ct)
 
         level = x.level
@@ -2621,7 +2621,7 @@ class ckks_engine:
 
         d1 = self.ntt.mont_add(x0y1, x0y1, level)
 
-        ct_mult = data_struct(
+        ct_mult = DataStruct(
             data=(d0, d1, d2),
             include_special=False,
             ntt_state=True,
@@ -2639,13 +2639,13 @@ class ckks_engine:
     # -------------------------------------------------------------------------------------------
     # Multiparty.
     # -------------------------------------------------------------------------------------------
-    def multiparty_public_crs(self, pk: data_struct):
+    def multiparty_public_crs(self, pk: DataStruct):
         crs = self.clone(pk).data[1]
         return crs
 
     def multiparty_create_public_key(
-        self, sk: data_struct, a=None, include_special=False
-    ) -> data_struct:
+        self, sk: DataStruct, a=None, include_special=False
+    ) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         if include_special and not sk.include_special:
@@ -2666,7 +2666,7 @@ class ckks_engine:
 
         sa = self.ntt.mont_mult(a, sk.data, 0, mult_type)
         pk0 = self.ntt.mont_sub(e, sa, 0, mult_type)
-        pk = data_struct(
+        pk = DataStruct(
             data=(pk0, a),
             include_special=include_special,
             ntt_state=True,
@@ -2679,8 +2679,8 @@ class ckks_engine:
         return pk
 
     def multiparty_create_collective_public_key(
-        self, pks: list[data_struct]
-    ) -> data_struct:
+        self, pks: list[DataStruct]
+    ) -> DataStruct:
         (
             data,
             include_special,
@@ -2698,7 +2698,7 @@ class ckks_engine:
         for pk in pks[1:]:
             b = self.ntt.mont_add(b, pk.data[0], lvl=0, mult_type=mult_type)
 
-        cpk = data_struct(
+        cpk = DataStruct(
             (b, a),
             include_special=include_special,
             ntt_state=ntt_state,
@@ -2710,7 +2710,7 @@ class ckks_engine:
         )
         return cpk
 
-    def multiparty_decrypt_head(self, ct: data_struct, sk: data_struct):
+    def multiparty_decrypt_head(self, ct: DataStruct, sk: DataStruct):
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if sk.origin != types.origins["sk"]:
@@ -2736,8 +2736,8 @@ class ckks_engine:
         return pt
 
     def multiparty_decrypt_partial(
-        self, ct: data_struct, sk: data_struct
-    ) -> data_struct:
+        self, ct: DataStruct, sk: DataStruct
+    ) -> DataStruct:
         if ct.origin != types.origins["ct"]:
             raise errors.NotMatchType(origin=ct.origin, to=types.origins["ct"])
         if sk.origin != types.origins["sk"]:
@@ -2798,8 +2798,8 @@ class ckks_engine:
     #### -------------------------------------------------------------------------------------------
 
     def multiparty_create_key_switching_key(
-        self, sk_src: data_struct, sk_dst: data_struct, a=None
-    ) -> data_struct:
+        self, sk_src: DataStruct, sk_dst: DataStruct, a=None
+    ) -> DataStruct:
         if (
             sk_src.origin != types.origins["sk"]
             or sk_src.origin != types.origins["sk"]
@@ -2849,7 +2849,7 @@ class ckks_engine:
 
                 ksk[global_part_id] = pk
 
-        return data_struct(
+        return DataStruct(
             data=ksk,
             include_special=True,
             ntt_state=True,
@@ -2861,13 +2861,13 @@ class ckks_engine:
         )
 
     def multiparty_create_rotation_key(
-        self, sk: data_struct, delta: int, a=None
-    ) -> data_struct:
+        self, sk: DataStruct, delta: int, a=None
+    ) -> DataStruct:
         sk_new_data = [s.clone() for s in sk.data]
         self.ntt.intt(sk_new_data)
         sk_new_data = [rotate(s, delta) for s in sk_new_data]
         self.ntt.ntt(sk_new_data)
-        sk_rotated = data_struct(
+        sk_rotated = DataStruct(
             data=sk_new_data,
             include_special=False,
             ntt_state=True,
@@ -2882,8 +2882,8 @@ class ckks_engine:
         return rotk
 
     def multiparty_generate_rotation_key(
-        self, rotks: list[data_struct]
-    ) -> data_struct:
+        self, rotks: list[DataStruct]
+    ) -> DataStruct:
         crotk = self.clone(rotks[0])
         for rotk in rotks[1:]:
             for ksk_idx in range(len(rotk.data)):
@@ -2895,7 +2895,7 @@ class ckks_engine:
                 )
         return crotk
 
-    def generate_rotation_crs(self, rotk: data_struct):
+    def generate_rotation_crs(self, rotk: DataStruct):
         if (
             types.origins["rotk"] not in rotk.origin
             and types.origins["ksk"] != rotk.origin
@@ -2912,7 +2912,7 @@ class ckks_engine:
     #### Multiparty. GALOIS
     #### -------------------------------------------------------------------------------------------
 
-    def generate_galois_crs(self, galk: data_struct):
+    def generate_galois_crs(self, galk: DataStruct):
         if galk.origin != types.origins["galk"]:
             raise errors.NotMatchType(
                 origin=galk.origin, to=types.origins["galk"]
@@ -2924,8 +2924,8 @@ class ckks_engine:
         return crs_s
 
     def multiparty_create_galois_key(
-        self, sk: data_struct, a: list
-    ) -> data_struct:
+        self, sk: DataStruct, a: list
+    ) -> DataStruct:
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
         galois_key_parts = [
@@ -2935,7 +2935,7 @@ class ckks_engine:
             for idx in range(len(self.galois_deltas))
         ]
 
-        galois_key = data_struct(
+        galois_key = DataStruct(
             data=galois_key_parts,
             include_special=True,
             montgomery_state=True,
@@ -2948,8 +2948,8 @@ class ckks_engine:
         return galois_key
 
     def multiparty_generate_galois_key(
-        self, galks: list[data_struct]
-    ) -> data_struct:
+        self, galks: list[DataStruct]
+    ) -> DataStruct:
         cgalk = self.clone(galks[0])
         for galk in galks[1:]:  # galk
             for rotk_idx in range(len(galk.data)):  # rotk
@@ -2967,7 +2967,7 @@ class ckks_engine:
     #### Multiparty. Evaluation Key
     #### -------------------------------------------------------------------------------------------
 
-    def multiparty_sum_evk_share(self, evks_share: list[data_struct]):
+    def multiparty_sum_evk_share(self, evks_share: list[DataStruct]):
         evk_sum = self.clone(evks_share[0])
         for evk_share in evks_share[1:]:
             for ksk_idx in range(len(evk_sum.data)):
@@ -2983,7 +2983,7 @@ class ckks_engine:
         return evk_sum
 
     def multiparty_mult_evk_share_sum(
-        self, evk_sum: data_struct, sk: data_struct
+        self, evk_sum: DataStruct, sk: DataStruct
     ):
         if sk.origin != types.origins["sk"]:
             raise errors.NotMatchType(origin=sk.origin, to=types.origins["sk"])
@@ -3007,8 +3007,8 @@ class ckks_engine:
         return evk_sum_mult
 
     def multiparty_sum_evk_share_mult(
-        self, evk_sum_mult: list[data_struct]
-    ) -> data_struct:
+        self, evk_sum_mult: list[DataStruct]
+    ) -> DataStruct:
         cevk = self.clone(evk_sum_mult[0])
         for evk in evk_sum_mult[1:]:
             for ksk_idx in range(len(cevk.data)):
@@ -3032,8 +3032,8 @@ class ckks_engine:
     #### -------------------------------------------------------------------------------------------
 
     def sqrt(
-        self, ct: data_struct, evk: data_struct, e=0.0001, alpha=0.0001
-    ) -> data_struct:
+        self, ct: DataStruct, evk: DataStruct, e=0.0001, alpha=0.0001
+    ) -> DataStruct:
         a = self.clone(ct)
         b = self.clone(ct)
 
@@ -3053,8 +3053,8 @@ class ckks_engine:
         return b
 
     def var(
-        self, ct: data_struct, evk: data_struct, gk: data_struct, relin=False
-    ) -> data_struct:
+        self, ct: DataStruct, evk: DataStruct, gk: DataStruct, relin=False
+    ) -> DataStruct:
         ct_mean = self.mean(ct=ct, gk=gk)
         dev = self.sub(ct, ct_mean)
         dev = self.square(ct=dev, evk=evk, relin=relin)
@@ -3064,8 +3064,8 @@ class ckks_engine:
         return ct_var
 
     def std(
-        self, ct: data_struct, evk: data_struct, gk: data_struct, relin=False
-    ) -> data_struct:
+        self, ct: DataStruct, evk: DataStruct, gk: DataStruct, relin=False
+    ) -> DataStruct:
         ct_var = self.var(ct=ct, evk=evk, gk=gk, relin=relin)
         ct_std = self.sqrt(ct=ct_var, evk=evk)
         return ct_std

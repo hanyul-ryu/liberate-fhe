@@ -3,7 +3,7 @@ from typing import NamedTuple
 from .version import VERSION
 
 
-class data_struct(NamedTuple):
+class DataStruct(NamedTuple):
     """
     - Data structure.
     - data: the data in tensor format
