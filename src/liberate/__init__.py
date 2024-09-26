@@ -1,8 +1,12 @@
 import os
 
 if os.getenv("USE_GPU", "false").lower() == "true":
-    from . import gpu
+    print("#######################")
     print(">>>> Using GPU backend")
+    print("#######################")
+    from . import gpu
 else:
-    from . import cpu
+    print("#######################")
     print(">>>> Using CPU backend")
+    print("#######################")
+    from . import cpu
