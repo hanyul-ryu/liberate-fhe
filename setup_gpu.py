@@ -1,8 +1,8 @@
 import os
 import subprocess
 
-from setuptools import setup
 import torch
+from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 path_source = "src/liberate/gpu"
