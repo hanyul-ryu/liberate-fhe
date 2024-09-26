@@ -1,6 +1,6 @@
-import os
+from torch import cuda
 
-if os.getenv("USE_GPU", "false").lower() == "true":
+if cuda.is_available():
     print("#######################")
     print(">>>> Using GPU backend")
     print("#######################")
