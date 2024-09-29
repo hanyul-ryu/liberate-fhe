@@ -72,27 +72,24 @@ cd liberate-fhe
 ### Install dependencies
 
 ```shell
-poetry install
-```
-
-### Run Cuda build Script.
-
-```shell
-python setup.py install
-# poetry run python setup.py install
+poetry install --no-root
 ```
 
 ### Build a python package
 
+If a GPU is available on your system, the GPU version of Liberate.FHE will be installed. If no GPU is detected, the CPU version will be installed instead.
+
 ```shell
+poetry build -f wheel # build only wheel file
+# or
 poetry build
 ```
 
 ### Install Liberate.FHE library
 
 ```shell
-pip install .
-# poetry run python -m pip install .
+pip install ./dist/your-liberate-wheel.whl
+# poetry run python -m pip install ./dist/your-liberate-wheel.whl
 ```
 
 # Documentation
