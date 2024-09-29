@@ -7,12 +7,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from liberate.data_struct import DataStruct
 from liberate.gpu.csprng import Csprng
 from liberate.gpu.ntt import ntt_context, ntt_cuda
 
 #  from context.ckks_context import ckks_context
 from .context.ckks_context import ckks_context
-from liberate.data_struct import DataStruct
 from .encdec import conjugate, decode, encode, rotate
 from .presets import errors, types
 from .version import VERSION

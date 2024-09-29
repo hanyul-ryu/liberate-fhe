@@ -9,11 +9,11 @@ import numpy as np
 import torch
 
 from liberate.cpu.utils.threadpool import jthreadpool
+from liberate.data_struct import DataStruct
 
 from ..csprng.csprng_cpu import Csprng
 from ..ntt_cpu.ntt_context_cpu import NttContext
 from .context.ckks_context import CkksContext
-from liberate.data_struct import DataStruct
 from .encdec import conjugate, decode, encode, rotate
 from .presets import errors, types
 from .version import VERSION

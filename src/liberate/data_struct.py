@@ -1,7 +1,6 @@
 from typing import NamedTuple
 
 
-
 class DataStruct(NamedTuple):
     """
     - Data structure.
