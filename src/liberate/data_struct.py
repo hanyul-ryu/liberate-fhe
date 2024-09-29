@@ -21,4 +21,4 @@ class DataStruct(NamedTuple):
     origin: str
     level: int
     hash: str
-    version: str = "0.9.0"
+    version: str = "0.9.1"
