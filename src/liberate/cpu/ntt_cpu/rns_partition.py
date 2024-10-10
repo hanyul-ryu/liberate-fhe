@@ -3,7 +3,7 @@ import numpy as np
 
 class RnsPartition:
     def __init__(
-            self, num_ordinary_primes=17, num_special_primes=2, num_devices=1
+        self, num_ordinary_primes=17, num_special_primes=2, num_devices=1
     ):
         # RNS primes ordered as
         # for the case where
@@ -40,8 +40,8 @@ class RnsPartition:
         num_partitions = -(-(num_ordinary_primes - 1) // num_special_primes)
 
         part = lambda i: primes_idx[
-                         i * num_special_primes: (i + 1) * num_special_primes
-                         ]
+            i * num_special_primes : (i + 1) * num_special_primes
+        ]
         partitions = [part(i) for i in range(num_partitions)]
 
         # Augment the base prime partition.

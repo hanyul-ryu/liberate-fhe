@@ -163,7 +163,7 @@ class Csprng:
         # (The lower bytes of the counter).
         state[:, 12] = self.counter[None, :]
 
-        # Set the expand 32-byte k
+        # Set to expand 32-byte k
         state[:, 0:4] = self.nothing_up_my_sleeve[None, :]
 
         # Set the seed.
@@ -187,15 +187,15 @@ class Csprng:
 
         return seed_tensor
 
-    def generate_key(self, seed):
+    def generate_key(self, seed=None):
         # 256bits seed as a key.
         # We generate the same key seed for every GPU.
         # Randomity is produced by counters, not the key.
-        return self.generate_initial_bytes(32, seed=None)
+        return self.generate_initial_bytes(32, seed=seed)
 
-    def generate_nonce(self, seed):
+    def generate_nonce(self, seed=None):
         # nonce is 64bits.
-        return self.generate_initial_bytes(8, seed=None)
+        return self.generate_initial_bytes(8, seed=seed)
 
     def randbytes(
         self, num_channels=None, length=None, reshape=False, repeats=1

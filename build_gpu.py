@@ -21,10 +21,15 @@ class CustomBuildExt(BuildExtension):
 
 def check_cuda_available():
     """
-        Check if CUDA is available by attempting to run nvcc.
+    Check if CUDA is available by attempting to run nvcc.
     """
     try:
-        subprocess.run(["nvcc", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            ["nvcc", "--version"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
         return True
     except (OSError, subprocess.CalledProcessError):
         return False
@@ -44,11 +49,7 @@ if is_cuda_available:
                 os.path.join(path_source, "ntt/ntt.cpp"),
                 os.path.join(path_source, "ntt/ntt_cuda_kernel.cu"),
             ],
-            extra_compile_args={
-                "cxx": [
-                    "-O3", "-DNDEBUG"
-                ]
-            }
+            extra_compile_args={"cxx": ["-O3", "-DNDEBUG"]},
         ),
         ###################
         ####    rng    ####
@@ -59,11 +60,7 @@ if is_cuda_available:
                 os.path.join(path_source, "csprng/randint.cpp"),
                 os.path.join(path_source, "csprng/randint_cuda_kernel.cu"),
             ],
-            extra_compile_args={
-                "cxx": [
-                    "-O3", "-DNDEBUG"
-                ]
-            }
+            extra_compile_args={"cxx": ["-O3", "-DNDEBUG"]},
         ),
         CUDAExtension(
             name="randround_cuda",
@@ -71,23 +68,17 @@ if is_cuda_available:
                 os.path.join(path_source, "csprng/randround.cpp"),
                 os.path.join(path_source, "csprng/randround_cuda_kernel.cu"),
             ],
-            extra_compile_args={
-                "cxx": [
-                    "-O3", "-DNDEBUG"
-                ]
-            }
+            extra_compile_args={"cxx": ["-O3", "-DNDEBUG"]},
         ),
         CUDAExtension(
             name="discrete_gaussian_cuda",
             sources=[
                 os.path.join(path_source, "csprng/discrete_gaussian.cpp"),
-                os.path.join(path_source, "csprng/discrete_gaussian_cuda_kernel.cu"),
+                os.path.join(
+                    path_source, "csprng/discrete_gaussian_cuda_kernel.cu"
+                ),
             ],
-            extra_compile_args={
-                "cxx": [
-                    "-O3", "-DNDEBUG"
-                ]
-            }
+            extra_compile_args={"cxx": ["-O3", "-DNDEBUG"]},
         ),
         CUDAExtension(
             name="chacha20_cuda",
@@ -95,11 +86,7 @@ if is_cuda_available:
                 os.path.join(path_source, "csprng/chacha20.cpp"),
                 os.path.join(path_source, "csprng/chacha20_cuda_kernel.cu"),
             ],
-            extra_compile_args={
-                "cxx": [
-                    "-O3", "-DNDEBUG"
-                ]
-            }
+            extra_compile_args={"cxx": ["-O3", "-DNDEBUG"]},
         ),
     ]
 
@@ -113,8 +100,6 @@ if __name__ == "__main__":
     setup(
         name="extensions",
         ext_modules=ext_modules,
-        cmdclass={
-            "build_ext": CustomBuildExt
-        },
-        script_args=["build_ext"]
+        cmdclass={"build_ext": CustomBuildExt},
+        script_args=["build_ext"],
     )

@@ -3,7 +3,7 @@ import numpy as np
 
 class rns_partition:
     def __init__(
-            self, num_ordinary_primes=17, num_special_primes=2, num_devices=2
+        self, num_ordinary_primes=17, num_special_primes=2, num_devices=2
     ):
         primes_idx = list(range(num_ordinary_primes - 1))
         base_idx = num_ordinary_primes - 1
@@ -11,8 +11,8 @@ class rns_partition:
         num_partitions = -(-(num_ordinary_primes - 1) // num_special_primes)
 
         part = lambda i: primes_idx[
-                         i * num_special_primes: (i + 1) * num_special_primes
-                         ]
+            i * num_special_primes : (i + 1) * num_special_primes
+        ]
         partitions = [part(i) for i in range(num_partitions)]
 
         partitions.append([num_ordinary_primes - 1])

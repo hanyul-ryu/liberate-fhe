@@ -1,7 +1,9 @@
 import glob
 import os
 
-path_cache = os.path.abspath(__file__).replace(os.path.basename(__file__), "resources")
+path_cache = os.path.abspath(__file__).replace(
+    os.path.basename(__file__), "resources"
+)
 
 
 # logN_N_M = os.path.join(path_cache, "logN_N_M.pkl")
@@ -24,6 +26,7 @@ def clean_cache(path=None):
 
 def generate_cache(path=None):
     from ..context import generate_primes
+
     if path is None:
         path = path_cache
     # Read in pre-calculated high-quality primes.

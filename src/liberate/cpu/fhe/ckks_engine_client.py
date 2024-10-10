@@ -19,7 +19,7 @@ from .presets import errors, types
 from .version import VERSION
 
 
-class ClientCkksEngine:
+class CkksEngineClient:
     @errors.log_error
     def __init__(
         self,
@@ -106,16 +106,6 @@ class ClientCkksEngine:
         self.make_mont_PR()
 
         self.reserve_ksk_buffers()
-
-        # self.create_ksk_rescales()
-        #
-        # self.alloc_parts()
-        #
-        # self.leveled_devices()
-        #
-        # self.create_rescale_scales()
-        #
-        # self.initialize_key_switching_plan()
 
         self.__galois_deltas = [2**i for i in range(self.ctx.logN - 1)]
 

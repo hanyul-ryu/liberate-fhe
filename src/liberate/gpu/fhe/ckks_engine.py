@@ -2580,9 +2580,7 @@ class ckks_engine:
 
         return ct_cov
 
-    def pow(
-        self, ct: DataStruct, power: int, evk: DataStruct
-    ) -> DataStruct:
+    def pow(self, ct: DataStruct, power: int, evk: DataStruct) -> DataStruct:
         current_exponent = 2
         pow_list = [ct]
         while current_exponent <= power:
