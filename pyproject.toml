@@ -42,6 +42,8 @@ exclude = [
     "src/liberate/**/*.cu",
 ]
 include = [
+    "build_cpu",
+    "build_gpu",
     "src/liberate/**/*.so"
 ]
 
